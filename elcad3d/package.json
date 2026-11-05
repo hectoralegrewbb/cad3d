@@ -1,0 +1,11 @@
+{
+  "name": "elcad3d",
+  "version": "0.2.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "test": "node scripts/test.mjs",
+    "start:production": "node serve.mjs --production"
+  }
+}

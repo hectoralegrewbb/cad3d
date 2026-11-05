@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { particleConfig } from '../src/core/particleConfig.js';
+import { hopperCavity } from '../src/core/hopperFill.js';
+import { HopperLoad } from '../src/particles/hopperLoad.js';
+import { ParticleSim, materialPresets } from '../src/particles/sim.js';
+import { loadKernel } from '../src/kernel/occNode.js';
+import { buildPart } from '../src/kernel/partBuilder.js';
+import { extractMesh } from '../src/kernel/meshExtractor.js';
+import { buildSdf } from '../src/particles/sdf.js';
+import { parseProject } from '../src/core/projectModel.js';
+import { ParticlePanel } from '../src/ui/particlePanel.js';
+
+assert.throws(()=>particleConfig({initialFill:{percent:101}}),/fuera de rango/);
+assert.throws(()=>particleConfig(null),/inválida/);
+const defaults=particleConfig();assert.equal(defaults.initialFill.enabled,false);
+const config=particleConfig({initialFill:{enabled:true,percent:50,target:'i1'}});
+assert.equal(particleConfig(JSON.parse(JSON.stringify(config))).initialFill.percent,50);
+// Reiniciar vuelve a invocar el arranque con el radio nuevo, no un reset del estado anterior.
+const events=[],panel=Object.create(ParticlePanel.prototype);
+Object.assign(panel,{config:particleConfig({radiusMm:7.5}),persist(){events.push('save');},recorder:{reset(){events.push('reset');}},hooks:{onStop(){events.push('stop');},onStart(c){events.push(['start',c.radiusMm]);}}});
+panel.restart();assert.deepEqual(events,['save','stop','reset',['start',7.5]]);
+
+const rep=await loadKernel();
+const source=parseProject(readFileSync('examples/Proyecto_original.proj3d','utf8'));
+const fixed=parseProject(readFileSync('examples/Tolva_llena.proj3d','utf8'));
+const cone=source.parts[0].part.features[1];
+const repaired=buildPart(rep,{...source.parts[0].part,features:[cone]});
+assert.equal(repaired.results[cone.id].status,'ok','el cono no se omite ni se acepta inválido');
+assert.ok(rep.measureVolume(repaired.shape)>550000&&rep.measureVolume(repaired.shape)<575000,'la reparación conserva el volumen original');
+repaired.shape.delete();
+const hopper=buildPart(rep,fixed.parts[0].part);
+assert.equal(hopper.results.mesh10.status,'ok');assert.equal(hopper.results.mesh12.status,'suppressed');
+const mesh=extractMesh(hopper.shape),cavity=hopperCavity(mesh,{maxAxis:90});
+assert.ok(cavity.capacity>50e6&&cavity.capacity<250e6,'orden de magnitud de cavidad');
+const sdf=buildSdf(mesh.vertices,mesh.triangles,{cell:3,band:10,maxVoxels:1000000});
+const material=materialPresets.arena;
+for(const percent of [25,50,100]){
+ const fill={...config.initialFill,percent,radius:3,settleSeconds:.1,feedRate:100};
+ const sim=new ParticleSim([{sdf,mesh,movable:false}],{...material,radius:3,rate:0,cap:500,maxCap:1000,initialFill:fill,airCells:0,airModel:'rapido',floorZ:-1000});
+ sim.initializeFill(cavity);
+ assert.ok(sim.count>0,'semillas en la zona de salida');
+ const initial=sim.fillInfo();assert.ok(Math.abs(initial.initialKg-(cavity.capacity/1e9*percent/100*.6*material.density))<1e-8);
+ for(let i=0;i<10;i++)sim.step(1/60);
+ const state=sim.fillInfo();
+ assert.ok(Math.abs(state.initialKg-state.reservoirKg-state.activeKg-state.exitedKg)<1e-7,'balance de masa');
+ assert.equal(state.phase,'running');assert.ok(state.visible>0,'se representa la carga almacenada');
+}
+const load=new HopperLoad(cavity,{...config.initialFill,percent:100,radius:3},material.density);
+assert.throws(()=>new HopperLoad({...cavity,rank:new Int32Array(0)},config.initialFill,material.density),/Grilla/);
+const center=load.point(0),deposits=[];
+const air={dims:[1,1,1],origin:center.map(v=>v-cavity.h/2),hmm:cavity.h,h:cavity.h/1000,uc:[1],vc:[0],wc:[0],depositParticle(...args){deposits.push(args);}};
+load.deposit(air,()=>2,.0005);
+assert.equal(deposits.length,1,'el reservorio ofrece resistencia incluso con pocos granos locales');
+assert.ok(Math.abs(deposits[0][6]-air.h**3*.6)<1e-15,'volumen depositado en unidades SI');
+assert.ok(deposits[0][7]>0,'arrastre poroso positivo');
+const empty=new HopperLoad(cavity,{...config.initialFill,percent:0},material.density);
+assert.equal(empty.countVisible(),0);assert.equal(empty.take(),false);
+deposits.length=0;empty.deposit(air,()=>2,.0005);assert.equal(deposits.length,0);
+assert.ok(load.take());assert.ok(load.remainingSolid<load.totalSolid);
+assert.equal(source.parts[0].part.features[1].suppressed,undefined,'el original queda intacto');
+hopper.shape.delete();
+console.log('hopperFill: cono, carga 25/50/100, reinicio y balance OK');

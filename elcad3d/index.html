@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ElCad 3D — modelador de piezas</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.js" } }</script>
+</head>
+<body>
+  <div id="bootScreen" class="boot-screen" role="status" aria-live="polite">
+    <div><h2>Preparando ElCad 3D</h2><p id="bootText">Cargando el motor CAD y el proyecto local…</p><div class="boot-track"></div><button id="bootRetry" class="btn" hidden>Reintentar carga</button></div>
+  </div>
+  <header class="topbar">
+    <strong class="brand">ElCad <span>3D</span></strong>
+    <input id="partName" class="part-name" spellcheck="false" aria-label="Nombre de la pieza" />
+    <div class="group">
+      <button id="undoBtn" class="btn" title="Deshacer (Ctrl+Z)">↶</button>
+      <button id="redoBtn" class="btn" title="Rehacer (Ctrl+Y)">↷</button>
+    </div>
+    <div class="group">
+      <select id="templateSelect" title="Nueva pieza desde plantilla"><option value="">Nuevo…</option></select>
+      <button id="helpBtn" class="btn" title="Atajos y trucos">?</button>
+      <button id="newBtn" class="btn" title="Nuevo proyecto: borra todo (pide confirmación)">Nuevo proyecto</button>
+      <button id="openBtn" class="btn">Abrir</button>
+      <button id="importBtn" class="btn" title="Importar DXF / DWG (entidades 2D → boceto)">Importar 2D</button>
+      <button id="libraryBtn" class="btn" title="Biblioteca de piezas de máquina: tornillería, rodamientos, poleas, motores, cintas, venturis…">Biblioteca</button>
+      <button id="propsBtn" class="btn" title="Propiedades físicas: volumen, superficie, masa, centro de masa, inercia y capacidad interior de tolvas y cañerías">Propiedades</button>
+      <button id="importStepBtn" class="btn">Importar STEP</button>
+      <button id="importStlBtn" class="btn" title="Importar un STL como sólido (cuerpos cerrados): sirve para simular partículas y aire">Importar STL</button>
+      <button id="cancelReadBtn" class="btn danger" hidden>Cancelar lectura STL</button>
+      <button id="saveBtn" class="btn" title="Ctrl+S">Guardar</button>
+    </div>
+    <div class="group">
+      <button id="stlBtn" class="btn" title="Malla para imprimir en 3D">STL</button>
+      <button id="mfBtn" class="btn" title="3MF para Bambu Studio / Orca">3MF</button>
+      <button id="stepBtn" class="btn">STEP</button>
+    </div>
+    <div class="group modes">
+      <button id="scopePart" class="btn active" title="Editar la pieza activa">Pieza</button>
+      <button id="scopeAsm" class="btn" title="Ver y armar el conjunto">Conjunto</button>
+    </div>
+    <div class="group modes">
+      <button id="mode3d" class="btn active">3D</button>
+      <button id="modePlano" class="btn">Plano</button>
+    </div>
+    <div class="group modes">
+      <button id="moveBtn" class="btn" title="Mover una o varias operaciones sobre un eje">↔ Mover</button>
+      <button id="sceneBtn" class="btn" title="Acciones: mover, girar o abrir cosas por tiempo + boquillas de aire">⚡ Acciones</button>
+      <button id="particleBtn" class="btn" title="Partículas: granulado/polvo, viento y tornillo sin fin (simulación en un Worker)">✦ Partículas</button>
+      <button id="motorBtn" class="btn" title="Hacer girar una pieza (animación, no modifica el modelo)">⚙ Motor</button>
+    </div>
+    <div class="group modes">
+      <button id="memBtn" class="btn danger" hidden title="La memoria del kernel (WASM) solo crece: reiniciar guarda el proyecto y recarga la página">🧠 Memoria</button>
+      <button id="styleBtn" class="btn" title="Estilo de dibujo: sólido · malla · solo aristas (el más liviano)">◐ Sólido</button>
+    </div>
+    <div class="group views" id="viewButtons">
+      <button class="btn" data-view="iso">Iso</button>
+      <button class="btn" data-view="front">Frente</button>
+      <button class="btn" data-view="top">Planta</button>
+      <button class="btn" data-view="right">Lateral</button>
+    </div>
+    <span id="busy" class="busy" hidden><span class="busy-track"><span class="busy-fill"></span></span><span id="busyLabel"></span><button id="busyCancel" class="btn danger" title="Descarta el cálculo en curso y reinicia el motor (la pieza visible no cambia)">Cancelar</button></span>
+    <span id="status" class="status" role="status" aria-live="polite">Cargando kernel…</span>
+  </header>
+  <main class="layout">
+    <aside class="left">
+      <section id="projectPanel" class="panel"></section>
+      <section id="tree" class="panel"></section>
+      <section id="paramsPanel" class="panel"></section>
+    </aside>
+    <section class="viewport">
+      <canvas id="view3d"></canvas>
+      <div id="motorPanel" class="motor-panel" hidden></div>
+      <div id="movePanel" class="motor-panel" hidden></div>
+      <div id="particlePanel" class="motor-panel" hidden></div>
+      <div id="scenePanel" class="motor-panel" hidden></div>
+      <div id="sketchLayer" class="sketch-layer" hidden>
+        <canvas id="sketchCanvas" tabindex="0"></canvas>
+        <div class="sketch-toolbar">
+          <button class="btn tool" data-sktool="select" title="Seleccionar / mover (V)">Seleccionar</button>
+          <button class="btn tool" data-sktool="rect" title="Rectángulo (R): 1.er clic = esquina, después tipeá ancho y alto o hacé 2.º clic">▭ Rect.</button>
+          <button class="btn tool" data-sktool="square" title="Cuadrado (Q)">◻ Cuadrado</button>
+          <button class="btn tool" data-sktool="circle" title="Círculo (C): 1.er clic = centro, tipeá Ø (o r12 = radio)">◯ Círculo</button>
+          <button class="btn tool" data-sktool="ellipse" title="Elipse (E): 1.er clic = centro, tipeá los dos ejes">⬯ Elipse</button>
+          <button class="btn tool" data-sktool="slot" title="Ranura (S)">⬭ Ranura</button>
+          <button class="btn tool" data-sktool="poly" title="Línea / polilínea (P o L): clic o tipeá largo y ángulo; Enter vacío o doble clic cierra">╱ Línea</button>
+          <button class="btn tool" data-sktool="polygon" title="Polígono regular (N): tuercas hexagonales, cuadradas y piezas especiales. 1.er clic = centro; tipeá medida entre caras (llave) o vértices y lados">⬡ Polígono</button>
+          <button class="btn tool" data-sktool="guide" title="Guía auxiliar (G): línea infinita para ubicar objetos; no se extruye. Shift traza a 0/45/90°">┄ Guía</button>
+          <button class="btn tool" data-sktool="measure" title="Medir distancia, Δx, Δy y ángulo (M)">📏 Medir</button>
+          <button class="btn tool" data-sktool="gap" title="Distancia mínima entre dos objetos o líneas (D): clic en uno y en otro. Shift = tomar un punto en vez del objeto. Sirve para chequear cuánto separan dos líneas paralelas o dos cuerpos">↔ Distancia</button>
+          <span class="sk-sep"></span>
+          <button class="btn toggle active" data-skopt="dist" title="Mientras dibujás: muestra la distancia perpendicular del cursor al objeto más cercano y Δx/Δy del tramo">⊥ Distancias</button>
+          <button class="btn toggle active" data-skopt="snap" title="Imanes: vértices, centros, puntos medios, cuadrantes, intersecciones (Alt = desactivar un momento)">🧲 Imanes</button>
+          <button class="btn toggle active" data-skopt="guides" title="Guías cada 45° y alineaciones">∠ Guías</button>
+          <button class="btn toggle active" data-skopt="refSketches" title="Papel cebolla: ver tenues los otros bocetos (proyectados si están en otro plano); sus puntos y líneas atraen el cursor">🧅 Bocetos</button>
+          <button class="btn toggle active" data-skopt="refSolid" title="Papel cebolla: ver tenue el corte de la pieza ya construida por el plano de este boceto; atrae el cursor">🧅 Pieza</button>
+          <button class="btn" data-skopt="unit" title="Unidad de reglas y de lo que tipeás">mm</button>
+          <button id="skFit" class="btn" title="Ajustar vista (F)">Ajustar</button>
+          <button id="skDone" class="btn primary">✓ Terminar boceto</button>
+        </div>
+        <div id="skHint" class="sketch-hint"></div>
+        <div id="skInput" class="sk-input" hidden></div>
+      </div>
+      <div id="planoLayer" class="plano-layer" hidden>
+        <div id="planoSvg" class="plano-svg"></div>
+        <div id="planoHint" class="sketch-hint"></div>
+      </div>
+      <div id="viewHint" class="view-hint"></div>
+    </section>
+    <aside class="right"><section id="props" class="panel"></section><section id="asmPanel" class="panel" hidden></section><section id="planoPanel" class="panel" hidden></section></aside>
+  </main>
+  <input id="fileInput" type="file" accept=".part3d,.proj3d,application/json" hidden />
+  <input id="cadInput" type="file" accept=".dxf,.dwg" hidden />
+  <input id="stepInput" type="file" accept=".step,.stp" hidden />
+  <input id="stlInput" type="file" accept=".stl" hidden />
+  <script type="module" src="src/app/main.js"></script>
+  <div id="helpModal" class="help-modal" hidden>
+    <div class="help-card">
+      <h3>Atajos y trucos</h3>
+      <h4>Boceto</h4>
+      <p><b>V</b> seleccionar · <b>R</b> rectángulo · <b>Q</b> cuadrado · <b>C</b> círculo · <b>E</b> elipse · <b>S</b> ranura · <b>L</b> línea · <b>N</b> polígono · <b>G</b> guía · <b>M</b> medir · <b>F</b> ajustar vista</p>
+      <p>Tras el primer clic, tipeá el tamaño (Tab = siguiente campo, Enter = aplicar). Círculo: <b>r12</b> = radio. <b>Shift</b> = línea recta (0/45/90°), <b>Alt</b> = sin imanes, <b>Ctrl+D</b> duplica, <b>Supr</b> borra, Espacio+arrastrar mueve la vista.</p>
+      <h4>Plano</h4>
+      <p>Clic en una cota para seleccionarla y <b>arrastrala</b> para moverla (se recuerda). <b>L</b> lineal · <b>D</b> Ø · <b>R</b> radio · Supr quita la cota. En "Texto" podés escribir tolerancias: <i>Ø7 H7</i>, <i>25 ±0,1</i>.</p>
+      <h4>General</h4>
+      <p><b>Ctrl+S</b> guarda el proyecto · <b>Ctrl+Z / Ctrl+Y</b> deshacer / rehacer · el autoguardado queda en el navegador.</p>
+      <button id="helpClose" class="btn primary">Cerrar</button>
+    </div>
+  </div>
+</body>
+</html>
