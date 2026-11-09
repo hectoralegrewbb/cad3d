@@ -1,4 +1,4 @@
-// Ruedas dentadas (piñones) para cadena de rodillos: tabla ISO 606 (serie B) y ANSI, perfil del diente, cadena de varias hileras,
+// Ruedas dentadas (piñones) para cadena de rodillos: tabla ISO 606 (serie B) y ASA/ANSI B29.1 (ASA 40 = ANSI 40), perfil del diente, cadena de varias hileras,
 // par de piñones a una distancia de centros con cantidad de eslabones par, y acciones enlazadas. Puro: sin DOM ni kernel.
 import { evaluate } from './expression.js';
 import { commands } from './commands.js';
@@ -7,6 +7,7 @@ import { planeFrame } from '../kernel/planes.js';
 import { featureTurn, turnPoint, turnVector } from '../kernel/turn.js';
 
 // paso p, Ø rodillo d1, ancho interior b1, paso entre hileras pt (mm). Valores de catálogo: verificá con tu fabricante.
+// Serie A = ASA/ANSI B29.1 (ASA 40 y ANSI 40 son la misma cadena: paso 1/2"). Las claves se conservan (A40…) porque están guardadas en los proyectos.
 export const chainTable = {
   '05B': { label: '05B (8 mm)', p: 8, d1: 5, b1: 3, pt: 5.64 },
   '06B': { label: '06B (3/8")', p: 9.525, d1: 6.35, b1: 5.72, pt: 10.24 },
@@ -16,16 +17,20 @@ export const chainTable = {
   '16B': { label: '16B (1")', p: 25.4, d1: 15.88, b1: 17.02, pt: 31.88 },
   '20B': { label: '20B (1 1/4")', p: 31.75, d1: 19.05, b1: 19.56, pt: 36.45 },
   '24B': { label: '24B (1 1/2")', p: 38.1, d1: 25.4, b1: 25.4, pt: 48.36 },
-  A25: { label: 'ANSI 25 (1/4")', p: 6.35, d1: 3.3, b1: 3.18, pt: 6.4 },
-  A35: { label: 'ANSI 35 (3/8")', p: 9.525, d1: 5.08, b1: 4.77, pt: 10.13 },
-  A40: { label: 'ANSI 40 (1/2")', p: 12.7, d1: 7.92, b1: 7.95, pt: 14.38 },
-  A50: { label: 'ANSI 50 (5/8")', p: 15.875, d1: 10.16, b1: 9.53, pt: 18.11 },
-  A60: { label: 'ANSI 60 (3/4")', p: 19.05, d1: 11.91, b1: 12.57, pt: 22.78 },
-  A80: { label: 'ANSI 80 (1")', p: 25.4, d1: 15.88, b1: 15.75, pt: 29.29 },
-  A100: { label: 'ANSI 100 (1 1/4")', p: 31.75, d1: 19.05, b1: 18.9, pt: 35.76 },
+  A25: { label: 'ASA 25 / ANSI 25 (1/4")', p: 6.35, d1: 3.3, b1: 3.18, pt: 6.4 },
+  A35: { label: 'ASA 35 / ANSI 35 (3/8")', p: 9.525, d1: 5.08, b1: 4.77, pt: 10.13 },
+  A40: { label: 'ASA 40 / ANSI 40 (1/2")', p: 12.7, d1: 7.92, b1: 7.95, pt: 14.38 },
+  A50: { label: 'ASA 50 / ANSI 50 (5/8")', p: 15.875, d1: 10.16, b1: 9.53, pt: 18.11 },
+  A60: { label: 'ASA 60 / ANSI 60 (3/4")', p: 19.05, d1: 11.91, b1: 12.57, pt: 22.78 },
+  A80: { label: 'ASA 80 / ANSI 80 (1")', p: 25.4, d1: 15.88, b1: 15.75, pt: 29.29 },
+  A100: { label: 'ASA 100 / ANSI 100 (1 1/4")', p: 31.75, d1: 19.05, b1: 18.9, pt: 35.76 },
 };
 export const chainIds = Object.keys(chainTable);
 export const strandOptions = { 1: 'Simple', 2: 'Doble', 3: 'Triple' };
+
+export const isAsaChain = (id) => /^A\d/.test(String(id)); // serie A: ASA/ANSI B29.1 (el resto es ISO 606)
+// Designación para el plano: "ASA 40" (= ANSI 40) o "ISO 08B".
+export const chainDesignation = (id) => (isAsaChain(id) ? `ASA ${String(id).slice(1)}` : `ISO ${id}`);
 
 const round = (v, d = 4) => Math.round(v * 10 ** d) / 10 ** d;
 const rad = (deg) => (deg * Math.PI) / 180;
@@ -37,21 +42,28 @@ export function sprocketGeometry({ chain = '08B', z = 19, strands = 1 }) {
   const teeth = Math.round(z);
   if (!(teeth >= 9 && teeth <= 120)) throw new Error('La rueda necesita entre 9 y 120 dientes.');
   const n = Math.max(1, Math.min(3, Math.round(strands)));
+  const asa = isAsaChain(chain);
   const rp = c.p / (2 * Math.sin(Math.PI / teeth));
-  const ri = 0.505 * c.d1 + 0.069 * Math.cbrt(c.d1); // radio del asiento del rodillo
+  // Asiento del rodillo: ASA/ANSI B29.1 → Ds = 1,005·d1 + 0,076 mm; ISO 606 → 1,01·d1 + 0,138·∛d1.
+  const ri = asa ? (1.005 * c.d1 + 0.076) / 2 : 0.505 * c.d1 + 0.069 * Math.cbrt(c.d1);
   const da = c.p * (0.6 + 1 / Math.tan(Math.PI / teeth)); // Ø exterior máximo
   const df = 2 * rp - 2 * ri; // Ø de pie
-  const tooth = (c.p > 12.7 ? 0.95 : 0.93) * c.b1; // ancho del diente por hilera
-  return { ...c, chain, z: teeth, strands: n, rp, ri, da, df, tooth, width: round((n - 1) * c.pt + tooth, 3), pitchDiameter: 2 * rp };
+  // Ancho del diente por hilera: ASA/ANSI → (0,93 | 0,95)·b1 − 0,15 mm (paso ≤ 1/2" | mayor); ISO → (0,93 | 0,95)·b1.
+  const tooth = (c.p > 12.7 ? 0.95 : 0.93) * c.b1 - (asa ? 0.15 : 0);
+  return { ...c, chain, designation: chainDesignation(chain), standard: asa ? 'ASA / ANSI B29.1' : 'ISO 606', z: teeth, strands: n, rp, ri, da, df, tooth, seatDiameter: 2 * ri, width: round((n - 1) * c.pt + tooth, 3), pitchDiameter: 2 * rp };
+}
+
+// Parámetros del perfil: paso angular, semiángulo del asiento, radio de la punta y semiancho angular de la punta.
+function profileParams(geo) {
+  const step = TAU / geo.z;
+  const rt = geo.da / 2;
+  return { step, gamma: rad(70 - 45 / geo.z), rt, tipHalf: Math.min((0.12 * geo.p) / rt / 2, step * 0.2) };
 }
 
 // Contorno cerrado (antihorario) en coordenadas del plano, centrado en (cx, cy); el asiento 0 queda sobre el ángulo `phaseDeg`.
 export function sprocketOutline(geo, { cx = 0, cy = 0, phaseDeg = 0, arcSteps = 8 } = {}) {
-  const { z, rp, ri, da } = geo;
-  const step = TAU / z;
-  const gamma = rad(70 - 45 / z); // semiángulo del asiento
-  const rt = da / 2;
-  const tipHalf = Math.min((0.12 * geo.p) / rt / 2, step * 0.2);
+  const { z, rp, ri } = geo;
+  const { step, gamma, rt, tipHalf } = profileParams(geo);
   const pts = [];
   for (let i = 0; i < z; i += 1) {
     const phi = rad(phaseDeg) + i * step;
@@ -65,6 +77,24 @@ export function sprocketOutline(geo, { cx = 0, cy = 0, phaseDeg = 0, arcSteps = 
     pts.push([rt * Math.cos(mid - tipHalf), rt * Math.sin(mid - tipHalf)], [rt * Math.cos(mid + tipHalf), rt * Math.sin(mid + tipHalf)]);
   }
   return pts.map(([x, y]) => [round(cx + x, 4), round(cy + y, 4)]);
+}
+
+// Mismo contorno con los asientos como ARCOS EXACTOS (para corte láser): vértices { x, y, bulge } de una polilínea cerrada antihoraria.
+// El bulge del asiento es tan(ángulo/4) con signo negativo (el arco gira en sentido horario alrededor del centro del rodillo).
+export function sprocketArcProfile(geo, { cx = 0, cy = 0, phaseDeg = 0 } = {}) {
+  const { z, rp, ri } = geo;
+  const { step, gamma, rt, tipHalf } = profileParams(geo);
+  const bulge = -Math.tan(gamma / 2);
+  const vertices = [];
+  for (let i = 0; i < z; i += 1) {
+    const phi = rad(phaseDeg) + i * step;
+    const [ox, oy] = [rp * Math.cos(phi), rp * Math.sin(phi)];
+    const seat = (s) => [ox + ri * Math.cos(phi + Math.PI + s), oy + ri * Math.sin(phi + Math.PI + s)];
+    const mid = phi + step / 2;
+    const tip = (a) => [rt * Math.cos(a), rt * Math.sin(a)];
+    [[seat(gamma), bulge], [seat(-gamma), 0], [tip(mid - tipHalf), 0], [tip(mid + tipHalf), 0]].forEach(([[x, y], b]) => vertices.push({ x: round(cx + x, 4), y: round(cy + y, 4), bulge: round(b, 6) }));
+  }
+  return vertices;
 }
 
 export const outlineArea = (pts) => Math.abs(pts.reduce((sum, [x, y], i) => { const [nx, ny] = pts[(i + 1) % pts.length]; return sum + (x * ny - nx * y); }, 0)) / 2;
@@ -102,7 +132,7 @@ export function addSprocket(state, { chain = '08B', z = 19, strands = 1, bore = 
   const extra = { ...(move ? { move: clone(move) } : {}), ...(turn ? { turn: clone(turn) } : {}) };
   let next = commands.addFeature(state, 'sketch', frame);
   let sketchId = lastId(next);
-  next = commands.addEntity(next, sketchId, { t: 'poly', pts: sprocketOutline(geo, { cx: x, cy: y, phaseDeg }).map(([px, py]) => ({ x: px, y: py, bulge: 0 })) });
+  next = commands.addEntity(next, sketchId, { t: 'poly', pts: sprocketArcProfile(geo, { cx: x, cy: y, phaseDeg }) });
   next = commands.addFeature(next, 'extrude', { sketch: sketchId, depth: geo.width, mode: 'add', name: `Rueda ${geo.z}z ${chainTable[chain].label}${geo.strands > 1 ? ` ×${geo.strands}` : ''}`, sprocket: { chain, z: geo.z, strands: geo.strands, x, y, bore: hole, phaseDeg }, ...extra });
   const toothId = lastId(next);
   if (hubDia > hole + 1) {
@@ -129,6 +159,22 @@ function sprocketPose(state, toothFeature, params) {
   const move = Array.isArray(toothFeature.move) ? toothFeature.move : [0, 0, 0];
   const center = turnPoint(turn, [0, 1, 2].map((i) => frame.origin[i] + x * frame.xDir[i] + y * frame.yDir[i])).map((v, i) => round(v + (Number(move[i]) || 0), 3));
   return { center, axis: turnVector(turn, frame.normal).map((v) => round(v, 6)), frame, turn };
+}
+
+// Ruedas de cadena de una pieza para el plano: geometría + centro y eje en coordenadas del mundo.
+export function sprocketFeatureSpecs(part, params = {}) {
+  const specs = [];
+  (part.features ?? []).forEach((feature) => {
+    if (!feature.sprocket || feature.suppressed) return;
+    try {
+      const geo = sprocketGeometry(feature.sprocket);
+      const pose = sprocketPose(part, feature, params);
+      specs.push({ id: feature.id, geo, center: pose.center, vector: pose.axis, rp: geo.rp });
+    } catch {
+      /* rueda inválida */
+    }
+  });
+  return specs;
 }
 
 // Par de piñones: agrega la segunda rueda a la distancia de centros pedida (corregida a eslabones pares) y las acciones enlazadas.

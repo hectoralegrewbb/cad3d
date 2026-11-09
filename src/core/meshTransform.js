@@ -21,15 +21,16 @@ export function transformMesh(data, { pos = [0, 0, 0], rot = [0, 0, 0] } = {}) {
     bounds:{min,max,size:max.map((v,k)=>v-min[k])} };
 }
 export function mergeMeshData(items) {
-  const vertices=[],normals=[],triangles=[],edges=[];
+  const vertices=[],normals=[],triangles=[],edges=[],faceGroups=[];
   const min=[Infinity,Infinity,Infinity], max=[-Infinity,-Infinity,-Infinity];
   for(const data of items){
-    const offset=vertices.length/3;
+    const offset=vertices.length/3,indexOffset=triangles.length;
+    for(const group of data.faceGroups??[])faceGroups.push({...group,start:group.start+indexOffset});
     for(const v of data.vertices)vertices.push(v);
     for(const n of data.normals)normals.push(n);
     for(const t of data.triangles)triangles.push(t+offset);
     edges.push(...data.edges);
     for(let k=0;k<3;k++){min[k]=Math.min(min[k],data.bounds.min[k]);max[k]=Math.max(max[k],data.bounds.max[k]);}
   }
-  return {vertices:Float32Array.from(vertices),normals:Float32Array.from(normals),triangles:Uint32Array.from(triangles),edges,bounds:{min,max,size:max.map((v,k)=>v-min[k])}};
+  return {vertices:Float32Array.from(vertices),normals:Float32Array.from(normals),triangles:Uint32Array.from(triangles),edges,faceGroups,bounds:{min,max,size:max.map((v,k)=>v-min[k])}};
 }

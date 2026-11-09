@@ -17,5 +17,9 @@ if(!process.env.ELCAD_VIEWER_TEST){
   assert.ok(Math.abs(viewer.modelGroup.children[0].matrix.elements[12]-25)<1e-5,'la previsualización conserva la colocación base');
   viewer.clearBodyAngle();assert.ok(Math.abs(viewer.modelGroup.children[0].matrix.elements[12]-20)<1e-5,'restaurar pose base');
   assert.deepEqual(viewer.bounds.min,[10,0,0]);assert.deepEqual(viewer.bounds.max,[60,40,40]);
+  viewer.setItemHidden('a');assert.equal(viewer.modelGroup.children[0].visible,false);assert.equal(viewer.edgeGroup.children.find(e=>e.userData.itemId==='a').visible,false);
+  viewer.restoreItems();assert.equal(viewer.modelGroup.children[0].visible,true);
+  viewer.previewPlacement('b',{pos:[12,13,14],rot:[0,0,45]});assert.equal(viewer.modelGroup.children[1].matrix.elements[12],12);
+  viewer.clearPlacementPreview();assert.equal(viewer.modelGroup.children[1].matrix.elements[12],50);
   viewer.setMeshes([]);
 }

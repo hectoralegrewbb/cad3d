@@ -108,6 +108,28 @@ export class Viewer {
     this.render();
   }
 
+  setItemHidden(id, hidden=true) {
+    this.hiddenItems??=new Set();if(hidden)this.hiddenItems.add(id);else this.hiddenItems.delete(id);
+    this.applyRenderMode();this.syncEdgeMode();this.render();
+  }
+  restoreItems() {this.hiddenItems=new Set();this.applyRenderMode();this.syncEdgeMode();this.render();}
+  previewPlacement(id, transform) {
+    const matrix=new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...transform.rot.map(v=>v*Math.PI/180),'ZYX'));matrix.setPosition(...transform.pos);
+    for(const object of [...this.modelGroup.children,...this.edgeGroup.children])if(object.userData.itemId===id){object.matrixAutoUpdate=false;object.matrix.copy(matrix);object.matrixWorldNeedsUpdate=true;}
+    this.render();
+  }
+  clearPlacementPreview() {
+    for(const object of [...this.modelGroup.children,...this.edgeGroup.children])if(object.userData.baseMatrix){object.matrix.copy(object.userData.baseMatrix);object.matrixWorldNeedsUpdate=true;}
+    this.render();
+  }
+  edgeAt(event) {
+    this.rayFromEvent(event);
+    let best=null,distance=Infinity;
+    const a=new THREE.Vector3(),b=new THREE.Vector3();
+    for(const edge of this.edgeRecords??[]){if(this.hiddenItems?.has(edge.itemId))continue;for(let i=3;i<edge.points.length;i+=3){a.fromArray(edge.points,i-3);b.fromArray(edge.points,i);const d=this.raycaster.ray.distanceSqToSegment(a,b);if(d<distance){distance=d;best=edge;}}}
+    const hit=this.surfaceAt(event);const tolerance=this.unitsPerPixel(hit?.point??this.controls.target.toArray())*8;
+    return distance<tolerance*tolerance?best:null;
+  }
   measureBetween(a, b) {
     const delta = b.point.map((v,k) => v-a.point[k]);
     const dot = a.normal.reduce((sum,v,k)=>sum+v*b.normal[k],0);
@@ -151,6 +173,7 @@ export class Viewer {
       const material = new THREE.MeshStandardMaterial({ color: color ?? colors.bodyLight, metalness: 0.15, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.itemId = id ?? null;
+      mesh.userData.faceGroups=data.faceGroups??[];
       const baseMatrix=new THREE.Matrix4();
       if(transform){
         const rotation=new THREE.Euler(...transform.rot.map(v=>v*Math.PI/180),'ZYX');
@@ -164,7 +187,7 @@ export class Viewer {
       visibleEdges.forEach((edge) => {
         let points=edge.points;
         if(transform){points=[];for(let i=0;i<edge.points.length;i+=3)points.push(...worldPoint(edge.points.slice(i,i+3)));}
-        this.edgeRecords.push({points,mid:transform?worldPoint(edge.mid):edge.mid,index:edge.index,itemId:id??null});
+        this.edgeRecords.push({type:edge.type,points,mid:transform?worldPoint(edge.mid):edge.mid,index:edge.index,itemId:id??null});
       });
       const positions = [];
       visibleEdges.forEach((edge) => {
@@ -291,7 +314,8 @@ export class Viewer {
       this.edgeLines = [];
       this.hoverEdge = null;
     }
-    merged.forEach((object) => (object.visible = !this.pickEnabled));
+    merged.forEach((object) => (object.visible = !this.pickEnabled&&!this.hiddenItems?.has(object.userData.itemId)));
+    individual.forEach(object=>object.visible=!this.hiddenItems?.has(object.userData.itemId));
     this.refreshEdgeColors();
   }
 
@@ -320,7 +344,7 @@ export class Viewer {
     const rect = this.canvas.getBoundingClientRect();
     const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(pointer, this.camera);
-    const hits = this.raycaster.intersectObjects(this.edgeLines ?? [], false);
+    const hits = this.raycaster.intersectObjects((this.edgeLines??[]).filter(line=>line.visible), false);
     if (hits.length === 0) return null;
     // Descarta aristas ocultas detrás de una cara.
     const solid = this.raycaster.intersectObjects(this.modelGroup.children, false)[0];
@@ -362,7 +386,8 @@ export class Viewer {
     if (!hit) return null;
     const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
     if (normal.dot(this.raycaster.ray.direction) > 0) normal.negate();
-    return { point: hit.point.toArray(), normal: normal.toArray() };
+    const faceGroup=hit.object.userData.faceGroups?.find(g=>hit.faceIndex*3>=g.start&&hit.faceIndex*3<g.start+g.count);
+    return { point: hit.point.toArray(), normal: normal.toArray(), itemId:hit.object.userData.itemId,faceId:faceGroup?.faceId };
   }
 
   handleUp(event) {
@@ -394,7 +419,7 @@ export class Viewer {
   applyRenderMode() {
     this.modelGroup.children.forEach((mesh) => {
       mesh.material.wireframe = this.renderMode === 'wire';
-      mesh.visible = this.renderMode !== 'edges';
+      mesh.visible = this.renderMode !== 'edges' && !this.hiddenItems?.has(mesh.userData.itemId);
     });
   }
 
@@ -465,6 +490,15 @@ export class Viewer {
     this.updateParticleScale();
   }
 
+  showFillOutlet(options) {
+    if(this.fillGate){this.fillGate.removeFromParent();this.fillGate.geometry.dispose();this.fillGate.material.dispose();this.fillGate=null;}
+    if(!options)return;
+    const points=[],axis=options.outletAxis,u=(axis+1)%3,v=(axis+2)%3;
+    for(let i=0;i<=64;i++){const p=[0,0,0],angle=i/64*Math.PI*2;p[axis]=options.outletPosition;p[u]=options.outletU+Math.cos(angle)*options.outletRadius;p[v]=options.outletV+Math.sin(angle)*options.outletRadius;points.push(...p);}
+    this.fillGate=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(points,3)),new THREE.LineBasicMaterial({color:0xff6458,depthTest:false}));
+    this.fillGate.renderOrder=990;this.particleGroup.add(this.fillGate);this.render();
+  }
+
   setHopperFill(fill, color = [0.75,0.59,0.32]) {
     if(this.fillPoints){this.fillPoints.removeFromParent();this.fillPoints.geometry.dispose();this.fillPoints.material.dispose();}
     this.fillPoints=null;
@@ -476,6 +510,7 @@ export class Viewer {
   }
 
   updateHopperFill(info) {
+    if(this.fillGate)this.fillGate.material.color.setHex(info?.open?0x64da98:0xff6458);
     if(!this.fillPoints)return;
     const count=info?.visible??0;
     this.fillPoints.geometry.setDrawRange(0,count);this.fillPoints.visible=count>0;this.render();
@@ -550,6 +585,7 @@ export class Viewer {
     this.points = null;
     this.productMesh = null;
     this.fillPoints = null;
+    this.fillGate = null;
     this.emitterBox = null;
     this.clearGroup(this.particleGroup);
   }
@@ -860,9 +896,10 @@ export class Viewer {
     const mesh = this.modelGroup.children.find((object) => (object.userData.itemId ?? null) === itemId && object.isMesh);
     if (!mesh) return null;
     const vertices=new Float32Array(mesh.geometry.attributes.position.array);
+    const normals=new Float32Array(mesh.geometry.attributes.normal?.array??new Float32Array(vertices.length));
     const base=mesh.userData.baseMatrix;
-    if(base)for(let i=0;i<vertices.length;i+=3){const p=new THREE.Vector3(vertices[i],vertices[i+1],vertices[i+2]).applyMatrix4(base);vertices.set(p.toArray(),i);}
-    return { vertices, triangles: new Uint32Array(mesh.geometry.index.array) };
+    if(base)for(let i=0;i<vertices.length;i+=3){const p=new THREE.Vector3(vertices[i],vertices[i+1],vertices[i+2]).applyMatrix4(base);vertices.set(p.toArray(),i);const n=new THREE.Vector3(normals[i],normals[i+1],normals[i+2]).transformDirection(base);normals.set(n.toArray(),i);}
+    return { vertices, normals, triangles: new Uint32Array(mesh.geometry.index.array) };
   }
 
   // Eje de giro del motor: línea punteada amarilla por el punto de giro y una esfera en el pivote.

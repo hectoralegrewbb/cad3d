@@ -5,6 +5,7 @@ import { primitivesToSvg } from './svgWriter.js';
 import { evaluate, evaluateParams } from '../core/expression.js';
 import { buildPart } from '../kernel/partBuilder.js';
 import { gearFeatureSpecs } from '../kernel/gearGeometry.js';
+import { sprocketFeatureSpecs } from '../core/sprocket.js';
 import { threadFeatureSpecs } from '../kernel/threadGeometry.js';
 import { resolveThread, threadCallout } from '../data/threads.js';
 import { meshShape } from '../kernel/batchMesh.js';
@@ -46,7 +47,15 @@ export function buildDrawing(rep, fullShape, part, { mass: massOverride = null, 
   // Datos de cada engranaje como notas del plano (Ø primitivo, exterior, pie).
   const gearNotes = gearFeatureSpecs(part, evaluateParams(part.params).values).map((gear) => `Engranaje ${gear.label} · Ø primitivo ${fmtNote(gear.pitchDiameter)} · Ø exterior ${fmtNote(gear.outsideDiameter)} · Ø pie ${fmtNote(gear.rootDiameter)}${gear.helix ? ` · hélice ${gear.helix}°` : ''}`);
   if (gearNotes.length) drawing.notes = [...gearNotes, ...(drawing.notes ?? [])];
-  const info = { circles: extractCircles(shape), holes: extractHoles(shape, rep), revolve: analyzeRevolve(shape), threads3d: threadFeatureSpecs(part, evaluateParams(part.params).values), gears3d: gearFeatureSpecs(part, evaluateParams(part.params).values) };
+  // Ruedas de cadena: designación ASA/ANSI (o ISO), paso, dientes y datos de la rueda como notas del plano.
+  const sprockets3d = sprocketFeatureSpecs(part, evaluateParams(part.params).values);
+  const sprocketNotes = sprockets3d.flatMap(({ geo }) => [
+    `Rueda de cadena ${geo.designation} (${geo.standard}) · paso ${fmtNote(geo.p)} mm · ${geo.z} dientes · ${['', 'simple', 'doble', 'triple'][geo.strands]}${geo.strands > 1 ? ` (paso entre hileras ${fmtNote(geo.pt)})` : ''}`,
+    `Ø primitivo ${fmtNote(geo.pitchDiameter)} · Ø exterior ${fmtNote(geo.da)} · Ø pie ${fmtNote(geo.df)}`,
+    `Ø rodillo ${fmtNote(geo.d1)} · ancho interior ${fmtNote(geo.b1)} · Ø asiento ${fmtNote(geo.seatDiameter)} · ancho de diente ${fmtNote(geo.tooth)}`,
+  ]);
+  if (sprocketNotes.length) drawing.notes = [...sprocketNotes, ...(drawing.notes ?? [])];
+  const info = { sprockets3d, circles: extractCircles(shape), holes: extractHoles(shape, rep), revolve: analyzeRevolve(shape), threads3d: threadFeatureSpecs(part, evaluateParams(part.params).values), gears3d: gearFeatureSpecs(part, evaluateParams(part.params).values) };
   const [bmin, bmax] = shape.boundingBox.bounds;
   const axisIndex = { x: 0, y: 1, z: 2 };
   const resolve = (config) => {

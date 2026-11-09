@@ -460,13 +460,18 @@ export class PropertiesPanel {
     }
     return [
       section('Rueda de cadena'),
-      el('p', { class: 'muted', text: `${chain?.label ?? info.chain} · ${info.z} dientes · ${info.strands} hilera(s)${geo ? ` · Ø primitivo ${fmt(geo.pitchDiameter)} · Ø exterior ${fmt(geo.da)} · ancho ${fmt(geo.width)} mm` : ''}` }),
+      el('p', { class: 'muted', text: `${chain?.label ?? info.chain} · ${info.z} dientes · ${info.strands} hilera(s)${geo ? ` · paso ${fmt(geo.p)} · Ø primitivo ${fmt(geo.pitchDiameter)} · Ø exterior ${fmt(geo.da)} · Ø pie ${fmt(geo.df)} · Ø rodillo ${fmt(geo.d1)} · ancho ${fmt(geo.width)} mm (${geo.standard})` : ''}` }),
       field('Dientes de la otra rueda', textInput(cfg.teeth, (value) => { cfg.teeth = value; this.h.onRefresh?.(); })),
       field('Distancia entre centros (mm)', textInput(cfg.distance, (value) => { cfg.distance = value; this.h.onRefresh?.(); })),
       field('Ubicación respecto de esta rueda', selectInput([['0', '+X del plano (derecha)'], ['180', '−X del plano (izquierda)'], ['90', '+Y del plano (arriba)'], ['270', '−Y del plano (abajo)']], cfg.theta, (value) => { cfg.theta = value; })),
       el('p', { class: 'muted', text: preview }),
       el('button', { class: 'btn', onClick: () => this.h.onAddSprocketPair?.(feature.id, { teeth: Math.round(teeth), distance, thetaDeg: Number(cfg.theta) }) }, 'Armar par'),
       el('p', { class: 'muted', text: 'Crea la otra rueda a esa distancia (corregida a eslabones pares) y, en ⚡ Acciones, el giro de esta rueda + el de la conducida enlazado como cadena (mismo sentido). La cadena no se dibuja.' }),
+      section('Corte láser'),
+      el('p', { class: 'muted', text: 'DXF 1:1 en mm de la cara plana más grande de la pieza: dentado (arcos exactos), agujeros, chaflanes/redondeos del boceto y cortes, tal como están. Capa CORTE, lo interior primero, esquina inferior izquierda en (0, 0). Sin cotas ni cajetín. El kerf se compensa en el software de la máquina.' }),
+      el('div', { class: 'row-wrap' },
+        el('button', { class: 'btn', title: 'Polilínea cerrada con arcos (AutoCAD 2000): LightBurn, LaserGRBL, RDWorks nuevo, CNC', onClick: () => this.h.onExportSprocketLaser?.(feature.id, 'r2000') }, 'DXF láser'),
+        el('button', { class: 'btn', title: 'Líneas y arcos sueltos (AutoCAD R12): para software láser antiguo', onClick: () => this.h.onExportSprocketLaser?.(feature.id, 'r12') }, 'DXF láser (R12)')),
     ];
   }
 

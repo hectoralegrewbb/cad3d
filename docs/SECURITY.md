@@ -37,3 +37,11 @@ La unión guarda un B-Rep en una operación `step` existente, dentro del proyect
 
 No se modifica auth ni fetch. Se usa el autoguardado existente, sin nuevo backend. Se validan rangos, vectores, modos y grilla al cruzar las fronteras de proyecto/worker. El servidor estático conserva sus controles existentes. Cambiar la configuración no guarda posiciones ni permite continuar una corrida tras recargar.
 
+
+
+## Ciclo de vida 0.3.0
+
+- Presupuesto, ejecución y disco de salida se guardan en `simulation.initialFill`, en archivos/autoguardado/revisiones existentes. Los leen validación, panel y worker. Duran hasta reemplazar/eliminar el documento; revisiones previas hasta su rotación o borrado.
+- Posición/rotación aplicadas por alineación usan `instances[].pos/rot`, con historial y guardado existentes. No se almacena una referencia de cara persistente.
+- BVH, partículas, bandera de primer cruce, contornos, inspección, firmas de vista previa y visibilidad viven sólo en memoria. Detener/reiniciar termina el worker de carga completa; cancelar/cambiar contexto descarta la vista previa. Los resultados exportados son archivos independientes bajo control del usuario.
+- Rangos de presupuesto, medidas, vectores, caras y modos se verifican en sus fronteras. Se limita inspección/colisión a 300.000 triángulos por cuerpo y posiciones candidatas de carga a 12 millones. No se añade auth, backend, fetch ni telemetría.

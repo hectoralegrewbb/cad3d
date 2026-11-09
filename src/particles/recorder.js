@@ -25,7 +25,7 @@ export class RunRecorder {
     if (t - this.lastTime < this.interval * this.step) return false;
     this.lastTime = t;
     const row = { perSecond: frame.perSecond, count: frame.count, exited: frame.exited };
-    if(frame.fill){row['fill:storedKg']=frame.fill.reservoirKg;row['fill:activeKg']=frame.fill.activeKg;row['fill:exitedKg']=frame.fill.exitedKg;row['fill:levelMm']=frame.fill.level;}
+    if(frame.fill){row['fill:storedKg']=frame.fill.reservoirKg;row['fill:activeKg']=frame.fill.activeKg;row['fill:exitedKg']=frame.fill.exitedKg;row['fill:levelMm']=frame.fill.level;row['fill:crossedKg']=frame.fill.crossedKg??0;row['fill:flowKgS']=frame.fill.flowKgS??0;}
     Object.entries(frame.air?.readings ?? {}).forEach(([id, r]) => {
       row[`p:${id}`] = r.pressure;
       row[`v:${id}`] = r.speed;
@@ -79,7 +79,7 @@ export class RunRecorder {
   }
 }
 
-const labels = { perSecond: 'salen/s', count: 'partículas', exited: 'salieron (total)', 'fill:storedKg':'reservorio (kg)', 'fill:activeKg':'partículas locales (kg)', 'fill:exitedKg':'retirado del dominio (kg)', 'fill:levelMm':'nivel de carga Z (mm)' };
+const labels = { perSecond: 'salen/s', count: 'partículas', exited: 'salieron (total)', 'fill:storedKg':'reservorio (kg)', 'fill:activeKg':'partículas locales (kg)', 'fill:exitedKg':'retirado del dominio (kg)', 'fill:levelMm':'nivel de carga Z (mm)', 'fill:crossedKg':'masa por sección (kg)', 'fill:flowKgS':'caudal por sección (kg/s)' };
 const prefixes = { p: 'presión (Pa)', v: 'velocidad (m/s)', q: 'caudal (m³/h)', zone: 'partículas en zona', rpm: 'rpm', motor: 'par motor (N·m)', load: 'par de carga (N·m)', fric: 'par de fricción (N·m)', plug: 'taponamiento (× sobre línea limpia)' };
 
 // Nombre legible de un canal; `names` traduce ids de sensores.

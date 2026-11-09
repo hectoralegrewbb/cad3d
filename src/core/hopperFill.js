@@ -59,10 +59,11 @@ export function hopperCavity(mesh, { maxAxis = 100, maxCells = 1500000 } = {}) {
 }
 
 export function validateInitialFill(value = {}) {
-  const result={enabled:false,percent:100,target:'',settleSeconds:2,radius:3,packing:0.6,feedRate:150,...value};
+  const result={enabled:false,percent:100,target:'',settleSeconds:2,radius:3,packing:0.6,feedRate:150,execution:'slow',budget:600000,outletAxis:0,outletPosition:700,outletSign:1,outletU:0,outletV:383,outletRadius:150,...value};
   if(typeof result.enabled!=='boolean'||typeof result.target!=='string'||result.target.length>128)throw new Error('Configuración de llenado inválida');
-  for(const [key,lo,hi] of [['percent',0,100],['settleSeconds',0,20],['radius',0.3,20],['packing',0.1,0.62],['feedRate',0,2000]]){
+  for(const [key,lo,hi] of [['percent',0,100],['settleSeconds',0,20],['radius',0.3,20],['packing',0.1,0.62],['feedRate',0,2000],['outletU',-1e7,1e7],['outletV',-1e7,1e7],['outletRadius',0.1,1e6]]){
     if(typeof result[key]!=='number'||!Number.isFinite(result[key])||result[key]<lo||result[key]>hi)throw new Error(`Llenado: ${key} fuera de rango (${lo}–${hi})`);
   }
+  if(!['interactive','slow'].includes(result.execution)||!Number.isInteger(result.budget)||result.budget<1000||result.budget>600000||![0,1,2].includes(result.outletAxis)||![-1,1].includes(result.outletSign)||!Number.isFinite(result.outletPosition)||Math.abs(result.outletPosition)>1e7)throw new Error('Presupuesto o plano de salida inválido');
   return result;
 }

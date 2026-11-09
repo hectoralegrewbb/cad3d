@@ -1,3 +1,17 @@
+# Casos vigentes 0.3.0
+
+Automáticos: `npm test`; `node scripts/check-hopper-air.mjs` para conjunto a escala con carga y aire; `node scripts/benchmark-hopper.mjs` para primeros pasos de tamaño real (puede tardar y consumir >500 MiB).
+
+Manuales pendientes en navegador:
+1. Revisar el panel CAD y partículas a 320/768/1024+ px, foco, scroll y recuperación de errores.
+2. Elegir caras/aristas de sólidos y de mallas: consultas exactas sólo en B-Rep; verificar que piezas ocultas no capturen selección.
+3. Alinear dos instancias con giro y separación, cancelar, aplicar, deshacer/rehacer, guardar/reabrir. Cambiar el proyecto durante la consulta invalida la vista previa.
+4. Seccionar un tubo: hueco visible y área descontada; abrir DXF en otro CAD y comprobar unidades. Caras extremas y contornos abiertos deben informar error.
+5. Carga completa: esperar asentamiento en tiempo simulado, abrir y comparar aire apagado/activo. Aro de sección rojo/verde, masa por sección separada de retirada del dominio. Cerrar no teletransporta partículas descargadas.
+6. Detener durante colisiones, siembra y paso lento debe recuperar la interfaz. Guardar/recargar conserva parámetros, no el estado instantáneo.
+
+Las notas anteriores siguientes se conservan como histórico.
+
 # Verificación de entrega
 
 ## Automatizada

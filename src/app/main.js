@@ -1,3 +1,4 @@
+import {alignedPlacement} from '../core/alignment.js';
 import { particleConfig } from '../core/particleConfig.js';
 import { solveAssemblyMates } from '../core/assemblyMates.js';
 import { createWorkbench, downloadCsv } from '../ui/workbench.js';
@@ -44,6 +45,8 @@ import { engageMoves, findLinks, linkLabels, solveTrain, turnedPose } from '../c
 import { gearFeatureSpecs } from '../kernel/gearGeometry.js';
 import { addGearMate } from '../core/gearPair.js';
 import { addSprocketPair } from '../core/sprocket.js';
+import { laserEntitiesToDxf } from '../io/laserDxf.js';
+import { loopsToLaserEntities } from '../core/laserOutline.js';
 import * as projects from '../core/projectModel.js';
 import { ProjectPanel } from '../ui/projectPanel.js';
 import { AssemblyPanel } from '../ui/assemblyPanel.js';
@@ -92,8 +95,30 @@ const asmStore = new DocumentStore(commands.updateDrawing(createPart('Conjunto')
 const viewer = new Viewer(byId('view3d'));
 workbench = createWorkbench(viewer, {
   status: setStatus, recover: () => restartForMemory(), save: () => {if(localSaveBlocked&&!confirm('No se pudo leer el guardado anterior. ¿Reemplazarlo con el proyecto actual? Las revisiones existentes se conservan.'))return false;localSaveBlocked=false;return persistNow();}, restore: activateProject,
-  stopTools: () => { closeMotorMove(); stopPick(); stopPreview(); viewer.cancelPlacement(); },
+  stopTools: () => { stopParticles();closeMotorMove(); stopPick(); stopPreview(); viewer.cancelPlacement(); },
   clearance: (first,second) => { if(scope!=='asm')throw new Error('Pasá a Conjunto para medir separación mínima entre instancias');return kernel.request('measureBodies',{first,second}); },
+  audit: id => geometryJob('audit',viewer.itemGeometry(id)),
+  errors: () => scope==='asm'?(lastAssembly?.errors??[]):Object.entries(lastBuild?.results??{}).filter(([,r])=>r.status==='error').map(([id,r])=>({id,error:r.error})),
+  selectError: error => {if(error.partId&&error.partId!==project.activePartId)activatePart(error.partId);else if(scope==='asm')setScope('part');select(error.id);},
+  entity: hit => kernel.request('inspectEntity',hit),
+  section: (itemId,axis,position,approximate) => approximate?geometryJob('section',{mesh:viewer.itemGeometry(itemId),axis,position}):kernel.request('sectionGeometry',{itemId,axis,position}),
+  prepareAlignment: async (moving,target,options) => {
+    if(scope!=='asm')throw new Error('Pasá a Conjunto para alinear instancias.');
+    if(moving.itemId===target.itemId)throw new Error('Seleccioná dos instancias distintas.');
+    const instance=project.instances.find(i=>i.id===moving.itemId);
+    if(!instance||instance.fixed)throw new Error('Desfijá la instancia móvil antes de alinearla.');
+    if((project.mates??[]).some(m=>m.a===instance.id||m.b===instance.id))throw new Error('Quitá las relaciones de esta instancia antes de colocarla manualmente.');
+    if(getScene().actions.some(a=>a.targets?.includes(instance.id)))throw new Error('Quitá las acciones de movimiento de la instancia antes de alinearla.');
+    stopParticles();stopPreview();
+    const signature=JSON.stringify(projectSnapshot());
+    const first=await kernel.request('inspectEntity',moving),second=await kernel.request('inspectEntity',target);
+    if(signature!==JSON.stringify(projectSnapshot()))throw new Error('El proyecto cambió. Repetí la selección.');
+    return {id:instance.id,transform:alignedPlacement(instance,first,second,options),signature};
+  },
+  applyAlignment: pending => {
+    if(scope!=='asm'||pending.signature!==JSON.stringify(projectSnapshot()))throw new Error('La vista previa quedó desactualizada. Repetí la selección.');
+    project=projects.updateInstance(project,pending.id,pending.transform);afterProjectChange();
+  },
   bom: async () => {
     syncActive(); await rebuildAssembly();
     if (!lastAssembly?.bom.length) throw new Error('Agregá instancias al conjunto para exportar su lista de materiales.');
@@ -561,7 +586,7 @@ function closeMotorMove() {
 let fillPreparation=null;
 let particleStartSeq=0;
 const particleRunner = new ParticleRunner({
-  onError: () => { particlePanel.state='idle';particlePanel.message='La simulación se detuvo. Revisá los parámetros y volvé a iniciar.';particlePanel.sync();setStatus(particlePanel.message,true); },
+  onError: error => {stopParticles();particlePanel.setState('idle',`La simulación se detuvo: ${error.message??'error de cálculo'}. Revisá los parámetros y reiniciá.`);setStatus(particlePanel.message,true);},
   onProgress: (info) => particlePanel.setProgress(`Preparando colisiones ${info.done + 1}/${info.total}${info.name ? ` · ${info.name}` : ''}…`),
   onFrame: (frame) => {
     viewer.setParticles(frame.pos);
@@ -639,6 +664,7 @@ const particlePanel = new ParticlePanel(byId('particlePanel'), {
   },
   onReset: () => particleRunner.reset(),
   onStop: () => stopParticles(),
+  onFill: patch => particleRunner.liveSettings(patch),
   onStart: async (config) => {
     stopParticles();
     const startSeq=++particleStartSeq;
@@ -718,15 +744,17 @@ const particlePanel = new ParticlePanel(byId('particlePanel'), {
       const floorZ = (viewer.bounds?.min[2] ?? 0) - 25;
       const radiusMm = config.initialFill.enabled ? config.initialFill.radius : config.radiusMm > 0 ? config.radiusMm : preset.radius;
       const settings = { ...preset, seed: config.seed ?? 1, radius: radiusMm, rate: config.airOnly || config.noGrains ? 0 : config.rate, airCells: { baja: 12000, media: 20000, alta: 40000 }[config.airQuality] ?? 20000, airModel: config.airModel, airSolverCells: { baja: 12000, media: 30000, alta: 90000 }[config.airQuality] ?? 30000, massFlow: config.massFlowKgH / 3600, cap: config.cap, wind: config.wind, emitter: config.emitter, floorZ, initialFill:config.initialFill };
+      if(fill){settings.maxCap=config.initialFill.execution==='interactive'?8000:config.initialFill.budget;settings.cap=settings.maxCap;}
       viewer.initParticles(settings.maxCap ?? 8000, radiusMm, preset.color);
-      viewer.showEmitter(config.emitter.center, config.emitter.size);
+      viewer.showEmitter(fill?null:config.emitter.center, config.emitter.size);
+      if(fill)viewer.showFillOutlet(config.initialFill);
       viewer.showNozzles(simNozzles(scene));
       viewer.showSensors(scene.sensors);
       particleStaticIds.forEach((id) => viewer.setItemOpacity(id, config.seeThrough ? 0.22 : 1));
-      particlePanel.recorder.metadata={version:'0.2.2',createdAt:new Date().toISOString(),scope,settings:structuredClone(settings),geometry:bodies.map(b=>({label:b.label,hash:`${meshHash(b.vertices)}:${meshHash(b.triangles)}`})),changes:[]};
+      particlePanel.recorder.metadata={version:'0.3.0',createdAt:new Date().toISOString(),scope,settings:structuredClone(settings),geometry:bodies.map(b=>({label:b.label,hash:`${meshHash(b.vertices)}:${meshHash(b.triangles)}`})),changes:[]};
       const started=await particleRunner.start({ bodies, settings, fill, scene: { actions: scene.actions, nozzles: simNozzles(scene), sensors: simSensors(scene), feeders: simFeeders(scene) } });
       if(startSeq!==particleStartSeq)return;
-      if(started.fill)viewer.setHopperFill(started.fill,preset.color);
+      // Toda la carga está en las posiciones dinámicas; no hay nube de reservorio.
       particleRunner.setSlice(config.slice);
       particlePanel.setState('running');
     } catch (error) {
@@ -828,6 +856,7 @@ const props = new PropertiesPanel(byId('props'), {
       setStatus(error.message, true);
     }
   },
+  onExportSprocketLaser: (toothId, format) => exportLaser(format),
   onAddGearMate: (gearId, opts) => {
     try {
       let made = null;
@@ -1006,6 +1035,7 @@ function setMode(next) {
 
 function setScope(next) {
   if (next === scope) return;
+  viewer.restoreItems();
   closeScenePanels();
   closeSketch();
   stopPick();
@@ -1523,7 +1553,25 @@ async function exportModel(kind) {
     downloadBlob(blob,`${exportName()}.${kind}`);setStatus(`Exportado ${exportName()}.${kind}`);
   }catch(error){setStatus(error.message,true);}
 }
+// DXF 1:1 para cortadora láser: la cara plana más grande de la pieza REAL (contorno, agujeros, chaflanes/redondeos de boceto, cortes).
+async function exportLaser(format = 'r2000') {
+  setStatus('Preparando DXF para láser…');
+  try {
+    if (scope === 'asm') throw new Error('El DXF para láser sale de una pieza: pasá a Pieza.');
+    if (!lastBuiltPart || lastBuiltPart.features !== store.state.features || lastBuiltPart.params !== store.state.params) await rebuild();
+    if (!lastBuild?.hasShape) throw new Error('No hay geometría válida para exportar');
+    const data = await kernel.request('laserOutline', {});
+    if (isSuperseded(data)) return;
+    const laser = loopsToLaserEntities(data);
+    downloadBlob(new Blob([laserEntitiesToDxf(laser, { format })], { type: 'application/dxf' }), `${exportName()}-laser${format === 'r12' ? '-r12' : ''}.dxf`);
+    setStatus(`DXF para láser (1:1): ${laser.width} × ${laser.height} mm · ${laser.holes} agujero${laser.holes === 1 ? '' : 's'} interior${laser.holes === 1 ? '' : 'es'} · cara más grande de la pieza`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
 byId('stlBtn').addEventListener('click', () => exportModel('stl'));
+byId('dxfLaserBtn').addEventListener('click', () => exportLaser('r2000'));
+byId('dxfLaserR12Btn').addEventListener('click', () => exportLaser('r12'));
 byId('mfBtn').addEventListener('click', () => exportModel('3mf'));
 byId('stepBtn').addEventListener('click', () => exportModel('step'));
 
@@ -1652,6 +1700,7 @@ function syncActive() {
 }
 
 function activatePart(id, { already = false } = {}) {
+  viewer.restoreItems();
   closeScenePanels();
   closeSketch();
   stopPick();
@@ -1773,6 +1822,7 @@ function setPartColor(id, color) {
 }
 
 function activateProject(data) {
+  viewer.restoreItems();
   data=projects.parseProject(JSON.stringify(data));
   localSaveBlocked=false;
   closeScenePanels();

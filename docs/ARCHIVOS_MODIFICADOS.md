@@ -93,3 +93,12 @@ Modificados: `package.json`, `package-lock.json`, `README.md`, `src/app/main.js`
 Nuevos: `src/core/{hopperFill,particleConfig}.js`, `src/particles/hopperLoad.js`, `tests/hopperFill.test.mjs`, `examples/{LEEME.md,Proyecto_original.proj3d,Tolva_llena.proj3d}`.
 
 Nuevo: `scripts/check-hopper-air.mjs` (integración reproducible del ejemplo).
+
+
+## Actualización 0.3.0
+
+Nuevos: `src/core/{inspection,alignment}.js`, `src/kernel/inspection.js`, `src/ui/cadTools.js`, `src/particles/meshCollider.js`, `tests/inspection.test.mjs`, `scripts/benchmark-hopper.mjs`, `examples/Tolva_prueba_escala.proj3d`.
+
+Modificados: `src/app/main.js`, `src/core/{hopperFill,meshTransform}.js`, `src/io/geometryWorker.js`, `src/kernel/{meshExtractor,kernelService}.js`, `src/particles/{hopperLoad,sim,worker,particleRunner,recorder}.js`, `src/ui/{workbench,particlePanel}.js`, `src/viewer/viewer.js`, `styles.css`, `tests/{hopperFill,viewerShared}.test.mjs`, `scripts/check-hopper-air.mjs`, `examples/{Tolva_llena.proj3d,LEEME.md}`, manifiestos y documentación.
+
+Prueba de controles adicional: `tests/cadTools.test.mjs` y soporte `tests/domHarness.mjs` (sin layout).

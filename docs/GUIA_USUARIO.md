@@ -223,3 +223,16 @@ Biblioteca → *Rueda dentada para cadena de rodillos*: elegís la cadena (ISO 6
 
 Ver `examples/LEEME.md`. En Partículas activar **Arrancar con la tolva cargada**, elegir la pieza fija, porcentaje, asentamiento, radio local y fracción sólida. **Reiniciar** aplica todos los valores nuevos. Con carga inicial no se utiliza el emisor regular: la transferencia a la salida se ajusta en partículas/s. El reservorio es una aproximación y no valida puentes ni descarga espontánea.
 
+
+
+## Uso vigente 0.3.0
+
+El reservorio descrito en 0.2.2 fue sustituido. Seguir `examples/LEEME.md` para carga física.
+
+Abrir **Herramientas de vista y proyecto → Inspección y montaje CAD**:
+- Elegir una pieza para ocultar, aislar o inspeccionar; Restaurar todas recupera la vista.
+- Inspeccionar muestra conectividad, bordes abiertos/no manifold y degenerados. Localizar dibuja hasta 500 bordes problemáticos; las operaciones fallidas se pueden seleccionar. No repara automáticamente.
+- Sección: elegir eje y posición absoluta. B-Rep calcula la intersección geométrica; Malla es aproximada. Contornos cerrados exportan DXF 2D en milímetros. El plano UV corresponde a los ejes cíclicos (X→YZ, Y→ZX, Z→XY).
+- Medir cara/arista: tocar la entidad para consultar área, longitud o círculo exacto B-Rep. Ángulo: tocar dos caras compatibles.
+- Alinear: en Conjunto seleccionar primero una cara plana/cilíndrica de la instancia móvil y luego la fija. La colocación centra referencias y enfrenta normales planas o hace coincidir ejes cilíndricos. Separación y giro adicional se aplican al preparar la vista previa. Aplicar confirma y permite deshacer; Cancelar/Escape restaura. No actúa sobre instancias fijas, relacionadas o con acciones; no detecta automáticamente colisiones durante la vista previa: revisar interferencias después de aplicar.
+

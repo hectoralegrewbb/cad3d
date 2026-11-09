@@ -23,3 +23,17 @@ Las restricciones de boceto son dirigidas: A es referencia y B se ajusta. Las re
 - `particles/hopperLoad.js`: API `HopperLoad`; contabilidad y deposición porosa, consumida por `ParticleSim`. No importa lógica de UI/kernel.
 - `ParticleRunner.start` admite `fill` opcional. Frames y ready transportan datos de carga; `Viewer.setHopperFill/updateHopperFill` representan la nube sin alterar colisiones. El panel comunica y persiste mediante hooks.
 
+
+
+## API vigente 0.3.0 (sustituye el reservorio 0.2.2)
+
+| Archivo | API pública | Consumidores |
+|---|---|---|
+| `core/inspection.js` | meshAudit, meshSection, sectionContours, sectionDxf | IO worker, kernel, UI |
+| `core/alignment.js` | alignedPlacement | app |
+| `kernel/inspection.js` | describeEntity, exactSection | kernelService |
+| `ui/cadTools.js` | createCadTools | workbench |
+| `particles/meshCollider.js` | MeshCollider | ParticleSim |
+| `particles/hopperLoad.js` | HopperLoad: seed, track, info | ParticleSim |
+
+Los métodos de reservorio visual se sustituyeron dentro del alcance aprobado. Se mantienen nombres y firmas de los puntos de entrada existentes de app/worker/visor; las capacidades nuevas se agregan mediante hooks y mensajes.
