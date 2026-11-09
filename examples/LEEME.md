@@ -1,24 +1,37 @@
-# Prueba de tolva llena — 0.2.2
+# Prueba física de tolva — 0.3.0
 
-1. Desde la carpeta extraída ejecutar `npm start`. Abrir http://localhost:5174.
-2. Abrir `Tolva_llena.proj3d` y seleccionar **Conjunto**.
-3. Abrir **Partículas**. Carga inicial activada, pieza `i1`, 100 %, radio local 3 mm, fracción sólida 0,6, asentamiento 2 s y transferencia máxima 150 partículas/s.
-4. Pulsar **Iniciar** y esperar la detección de cavidad y las colisiones. El asentamiento se mide en tiempo simulado; el aire y la transferencia comienzan después.
-5. Comparar 25 / 50 / 100 % usando **Reiniciar**. Observar nivel y masas almacenada, activa y retirada del dominio. El tope adaptativo limita las partículas locales, sin aumentar su radio ni borrar masa del reservorio.
-6. Guardar el proyecto, recargarlo y comprobar que se conservan los parámetros. El estado instantáneo de la corrida no se guarda.
+## Arranque
 
-## Qué contiene el ejemplo
+1. Ejecutar `npm start` en la carpeta extraída y abrir http://localhost:5174.
+2. Abrir `Tolva_prueba_escala.proj3d`. Elegir **Conjunto → Partículas**.
+3. **Iniciar** prepara cavidad, colisiones y toda la carga. Durante el asentamiento la descarga está cerrada y el aire apagado.
+4. Al terminar el intervalo, **Abrir descarga** libera la retención. **Activar aire** permite comparar la misma carga con/sin aire. El aro de sección pasa de rojo (cerrada) a verde (abierta).
+5. **Reiniciar** reconstruye usando los parámetros actuales y la misma semilla. **Detener** termina el worker de carga completa incluso si está ocupado. El estado dinámico no se guarda.
 
-`Proyecto_original.proj3d` conserva los bytes del proyecto recibido. No fue modificado.
+## Ejemplos
 
-En `Tolva_llena.proj3d` la operación `p1/mesh12` (`cono 60mm.stl`) está suprimida: estaba fuera de la tolva y no aparecía antes porque su construcción fallaba. Se conserva su malla; ahora es reparable, pero debe colocarse correctamente antes de activarla. No se movieron las instancias del conjunto.
+- `Proyecto_original.proj3d`: bytes del archivo recibido, intactos.
+- `Tolva_llena.proj3d`: dimensiones reales recibidas, radio numérico 3 mm, fracción sólida inicial 0,6, presupuesto 600.000, asentamiento 2 s simulados. Detecta aproximadamente 96,3 L de cavidad. La red inicial con separación a paredes coloca aproximadamente 487.580 partículas; el panel informa el porcentaje efectivo (aprox. 95,4 % volumétrico equivalente), sin inventar masa para alcanzar el objetivo.
+- `Tolva_prueba_escala.proj3d`: todas las geometrías y posiciones a escala 0,08, radio numérico 0,8 mm, presupuesto 30.000 y asentamiento 0,5 s. Aproximadamente 12.000 partículas, dependiendo de exclusión por paredes. Es un ejemplo más liviano; no valida el comportamiento del equipo a tamaño real.
 
-La boquilla original tenía velocidad guardada de 8 m/s y radio 20 mm. Se usa su equivalente ideal Q = v·π·r² = 36,19 m³/h como entrada **Caudal** para activar el solver de presión. No es un caudal medido ni una curva de soplador; una fuente ideal impone Q aunque aumente la resistencia. Cambiar a entrada por presión requiere datos reales del equipo. No se certificó la estanqueidad del conjunto original.
+## Cómo se calcula
 
-## Alcance físico
+Toda partícula visible de material tiene posición, velocidad, masa, gravedad y contactos PBD. No se añade material al abrir. La red FCC inicial evita superposiciones y se filtra por cavidad y distancia a paredes. El radio no aumenta automáticamente. Si no cabe el total en el presupuesto, el arranque falla con una acción de recuperación.
 
-La carga visible es un reservorio volumétrico estacionario, con resistencia porosa en el aire calculado. Sólo la zona de salida contiene esferas dinámicas con colisión. La transferencia del reservorio a esa zona tiene un límite elegido por el usuario; no deriva de una ley física de descarga global. El nivel baja por volumen retirado y se conserva la masa contable.
+El asentamiento tiene duración elegida en tiempo simulado, no un certificado de equilibrio. La retención virtual consta de un plano inferior en la cota mínima detectada de la cavidad y un disco en la sección de salida configurada. No son compuertas CAD añadidas al modelo. Abrir libera ambas; cerrar no devuelve partículas ya descargadas. Para simular una compuerta real, usar su geometría y acciones correspondientes en un caso separado.
 
-**No valida puentes, presiones mecánicas de toda la carga, vaciado espontáneo ni caudal industrial.** La capacidad se estima sobre una grilla de la cavidad cerrada lateralmente; depende de resolución y geometría. Requiere una tolva fija, preferentemente vertical en Z y aislada de otras cavidades. Revisar visualmente la máscara representada antes de usarla. Material, granulometría y condiciones de contorno requieren calibración.
+La sección es un disco definido por eje, posición, centro U/V y radio. Para eje X, U=Y y V=Z; para Y, U=Z y V=X; para Z, U=X y V=Y. Se cuenta el primer cruce de cada centro de partícula en el sentido elegido dentro del disco. El caudal es masa cruzada en el último segundo simulado, sin contar varias veces recirculaciones. La masa retirada del dominio es otra métrica.
 
-El asentamiento relaja sólo las partículas locales, con retención temporal en el nivel inferior detectado; no asienta físicamente cada grano del volumen superior. La nube del reservorio no aumenta el radio de colisión. Para validar toda la tolva se requiere DEM de la carga completa y contraste experimental.
+El refinamiento de contacto usa triángulos cerca de las paredes para conservar chapas que la grilla SDF no resuelve bien. El aire calculado recibe volumen y arrastre de todas las partículas; no de un reservorio fijo.
+
+## Costos y alcance
+
+La carga de tamaño real necesita alrededor de 550 MiB y varios segundos reales por cada paso de 1/60 s en este entorno. Los primeros pasos con refinamiento costaron 2,6–3,0 s y la compactación puede elevar ese costo. No es tiempo real. En móviles o equipos con poca RAM usar primero el ejemplo pequeño y un presupuesto limitado.
+
+La dinámica PBD, su carga/fricción aproximada y el acoplamiento de aire requieren calibración. El radio numérico de contacto y la granulometría usada por el arrastre son magnitudes distintas. No presentar estas corridas como certificación de puentes, caudales o presiones industriales. El test pequeño comprueba movimiento, retención, descarga y masa; no sustituye un ensayo experimental.
+
+## Ajustes conservados del ejemplo anterior
+
+La operación `p1/mesh12` sigue suprimida porque el cono original estaba fuera de la tolva. Se conserva la malla y su reparación B-Rep; debe colocarse antes de activarlo. No se movieron instancias en el ejemplo de tamaño real.
+
+La boquilla original guardaba 8 m/s y radio 20 mm. La condición de caudal ideal equivalente es 36,19 m³/h; no es una medición ni una curva de soplador. En el ejemplo a escala se reduce Q con el área para conservar la velocidad ideal. Revisar las condiciones reales antes de comparar resultados.

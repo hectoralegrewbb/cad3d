@@ -77,16 +77,23 @@ export class ParticlePanel {
 
   fillControls(info, active) {
     const fill=this.config.initialFill;
-    const update=(key,value)=>{fill[key]=value;this.message=active?'Aplicá los cambios con Reiniciar.':'';this.render();};
+    const update=(key,value)=>{fill[key]=value;if(key==='enabled'&&value){this.config.airOnly=false;this.config.noGrains=false;}this.message=active?'Aplicá los cambios con Reiniciar.':'';this.render();};
     const number=(label,key,unit)=>field(label,textInput(String(fill[key]),text=>update(key,toNumber(text,fill[key]))));
     return [el('b',{text:'Carga inicial de la tolva'}),checkInput(fill.enabled,v=>update('enabled',v),'Arrancar con la tolva cargada'),
       ...(fill.enabled?[
         field('Pieza de la tolva',selectInput([['','Elegir la tolva…'],...(info.targets??[]).map(item=>[item.id,item.name])],fill.target,v=>update('target',v))),
         number('Llenado por volumen (%)','percent'),number('Asentamiento previo (s)','settleSeconds'),
-        number('Radio de partículas en salida (mm)','radius'),number('Fracción sólida del material (0,1–0,62)','packing'),
-        number('Transferencia máxima a zona de salida (partículas/s)','feedRate'),
-        el('p',{class:'alert soft',text:'Reservorio volumétrico + partículas finas en la salida. La alimentación local tiene un límite elegido; este modo no calcula puentes ni presión mecánica de toda la carga. No es una validación de descarga espontánea de la tolva.'}),
-        el('p',{class:'muted',text:'El aire calculado incluye la resistencia del material almacenado. Con entrada Chorro se usa el modo rápido, sin pérdida de presión del lecho.'})
+        number('Radio de colisión de toda la carga (mm)','radius'),number('Fracción sólida del material (0,1–0,62)','packing'),
+        field('Ejecución',selectInput([['interactive','Interactiva (máximo 8.000)'],['slow','Cálculo lento (carga completa)']],fill.execution,v=>update('execution',v))),
+        ...(fill.execution==='slow'?[number('Presupuesto máximo de partículas (1.000–600.000)','budget')]:[]),
+        field('Sección de salida: eje',selectInput([[0,'X'],[1,'Y'],[2,'Z']],fill.outletAxis,v=>update('outletAxis',Number(v)))),
+        number('Sección de salida: posición (mm)','outletPosition'),number('Centro sección U (eje siguiente, mm)','outletU'),number('Centro sección V (tercer eje, mm)','outletV'),number('Radio sección de medición (mm)','outletRadius'),
+        field('Sentido de salida',selectInput([[1,'Hacia +'],[-1,'Hacia −']],fill.outletSign,v=>update('outletSign',Number(v)))),
+        el('p',{class:'hint-block',text:'Toda la carga son partículas dinámicas. La descarga comienza cerrada y el aire apagado. El aro rojo marca la compuerta virtual de salida; al abrir pasa a verde. Se retiene también el límite inferior de la cavidad. Tras asentar, abrí la descarga y activá el aire por separado. Cálculo lento avanza en tiempo simulado; Detener cancela el worker. No se aumenta el radio ni se recorta la carga.'}),
+        ...(active?[
+          button(this.stats?.fill?.open?'Cerrar descarga':'Abrir descarga',()=>{if(this.stats?.fill?.phase==='settling'){this.message='Esperá a completar el asentamiento antes de abrir.';this.render();return;}this.hooks.onFill?.({fillOpen:!this.stats?.fill?.open});}),
+          button(this.stats?.fill?.airEnabled?'Apagar aire':'Activar aire',()=>this.hooks.onFill?.({fillAir:!this.stats?.fill?.airEnabled}))
+        ]:[])
       ]:[])];
   }
 
@@ -114,7 +121,10 @@ export class ParticlePanel {
   }
 
   setStats(stats) {
+    const previous=this.stats?.fill;
+    const changed=stats.fill&&(previous?.phase!==stats.fill.phase||previous?.open!==stats.fill.open||previous?.airEnabled!==stats.fill.airEnabled);
     this.stats = stats;
+    if(changed&&this.open)this.render();
     if (this.state === 'running') {
       this.recorder.push(stats);
       if (this.recorder.keys().length !== this.knownKeys) this.render(); // apareció un canal nuevo (sensor, eje): se actualiza la lista
@@ -133,9 +143,13 @@ export class ParticlePanel {
   fillText() {
     const fill=this.stats?.fill;if(!fill)return '';
     const fmt=v=>v.toLocaleString('es-AR',{maximumFractionDigits:2});
-    return `${fill.phase==='settling'?'Asentando carga (aire y descarga retenidos)':'Carga en proceso'} · nivel Z ${fmt(fill.level)} mm
-Reservorio ${fmt(fill.reservoirKg)} kg (${fmt(fill.remainingLiters)} L) · zona activa ${fmt(fill.activeKg)} kg · retirado del dominio ${fmt(fill.exitedKg)} kg
-Inicial ${fmt(fill.initialKg)} kg · cavidad estimada ${fmt(fill.capacityLiters)} L · celda ${fmt(fill.cellMm)} mm`;
+    return `${fill.phase==='settling'?'Asentando · descarga cerrada':fill.phase==='ready'?'Lista · descarga cerrada':'Descargando'} · aire ${fill.airEnabled?'activo':'apagado'}
+${fill.initialCount?.toLocaleString('es-AR')} partículas dinámicas · carga inicial efectiva ${fmt(fill.actualFillPercent??0)} % · nivel Z ${fmt(fill.level)} mm
+Masa inicial ${fmt(fill.initialKg)} kg · activa ${fmt(fill.activeKg)} kg · retirada del dominio ${fmt(fill.exitedKg)} kg
+Cruce de sección ${fmt(fill.crossedKg??0)} kg · caudal último segundo ${fmt(fill.flowKgS??0)} kg/s
+Costo estimado: 1 s simulado ≈ ${fmt((this.stats?.stepMs??0)*60/1000)} s de cálculo
+Volumen suelto equivalente ${fmt(fill.remainingLiters)} L · cavidad estimada ${fmt(fill.capacityLiters)} L`;
+
   }
 
   // Estado del aire calculado y lecturas de los sensores (presión manométrica, velocidad media y caudal por su plano central).
@@ -252,6 +266,7 @@ Inicial ${fmt(fill.initialKg)} kg · cavidad estimada ${fmt(fill.capacityLiters)
       field('Material', selectInput(Object.entries(materialPresets).map(([id, preset]) => [id, preset.label]), config.preset, (value) => { config.preset = value; this.message = active ? 'El material nuevo se aplica al reiniciar.' : ''; this.render(); })),
       ...this.fillControls(info,active),
       ...(!config.initialFill.enabled?this.sizeControls(config, active):[]),
+      ...(!config.initialFill.enabled?[
       el('b', { text: config.initialFill.enabled?'Emisor continuo (no se usa con carga inicial)':'Emisor (caja celeste)' }),
       button(this.placing ? 'Hacé clic en el modelo… (Esc cancela)' : '📍 Soltar sobre un punto del modelo', () => {
         if (this.placing) {
@@ -273,18 +288,19 @@ Inicial ${fmt(fill.initialKg)} kg · cavidad estimada ${fmt(fill.capacityLiters)
       triple('Tamaño', config.emitter.size, (value) => { config.emitter.size = value; this.live({ emitter: config.emitter }); this.hooks.onEmitter(config.emitter.center, config.emitter.size); }, 'mm'),
       numField('Caudal de carga', config.rate, (value) => { config.rate = value; this.live({ rate: value }); }, 'partículas/s'),
       numField('Caudal de producto (0 = automático)', config.massFlowKgH, (value) => { config.massFlowKgH = Math.max(0, value); this.live({ massFlow: config.massFlowKgH / 3600 }); }, 'kg/h'),
-      numField('Tope de partículas', config.cap, (value) => { config.cap = Math.max(100, Math.min(8000, value)); this.live({ cap: config.cap }); this.render(); }, 'máx. 8000, se adapta solo'),
+      ]:[]),
+      !config.initialFill.enabled ? numField('Tope de partículas', config.cap, (value) => { config.cap = Math.max(100, Math.min(8000, value)); this.live({ cap: config.cap }); this.render(); }, 'máx. 8000, se adapta solo') : null,
       checkInput(config.seeThrough, (value) => { config.seeThrough = value; this.hooks.onSeeThrough?.(value); }, 'Piezas fijas translúcidas'),
       el('b', { text: 'Aire' }),
       field('Modelo de aire', selectInput([['calculado', 'Calculado (presión y caudal)'], ['rapido', 'Rápido (solo visual)']], config.airModel, (value) => { config.airModel = value; this.message = active ? 'El modelo nuevo se aplica al reiniciar.' : ''; this.render(); })),
-      config.airModel === 'calculado' ? el('p', { class: 'muted', text: 'Resuelve un campo de aire incompresible (presión y velocidad) con las boquillas como entradas de caudal o presión; los sensores miden p, v y Q. Error típico de ±15–30 %: sirve para comparar variantes, no para certificar un equipo.' }) : null,
+      config.airModel === 'calculado' ? el('p', { class: 'muted', text: 'Resuelve un campo de aire incompresible (presión y velocidad) con las boquillas como entradas de caudal o presión; los sensores miden p, v y Q. Modelo aproximado; requiere calibración experimental.' }) : null,
       field('Calidad del campo de aire', selectInput([['baja', 'Baja (rápida)'], ['media', 'Media'], ['alta', 'Alta (lenta)']], config.airQuality, (value) => { config.airQuality = value; this.message = active ? 'La calidad nueva se aplica al reiniciar.' : ''; this.render(); })),
       field('Plano de corte del aire', selectInput([['ninguno', 'Sin corte'], ['presion', 'Presión (azul −, rojo +)'], ['velocidad', 'Velocidad']], config.slice.mode, (value) => { config.slice.mode = value; this.hooks.onSlice?.({ ...config.slice }); this.render(); })),
       config.slice.mode !== 'ninguno' ? el('div', { class: 'row-wrap' },
         selectInput([[0, 'Plano ⟂ X'], [1, 'Plano ⟂ Y'], [2, 'Plano ⟂ Z']], config.slice.axis, (value) => { config.slice.axis = Number(value); this.hooks.onSlice?.({ ...config.slice }); }),
         el('input', { type: 'range', min: 0, max: 100, value: Math.round(config.slice.t * 100), title: 'Posición del plano a lo largo del dominio', onInput: (event) => { config.slice.t = Number(event.target.value) / 100; this.hooks.onSlice?.({ ...config.slice }); } })) : null,
-      checkInput(config.noGrains, (value) => { config.noGrains = value; this.live({ rate: value || config.airOnly ? 0 : config.rate }); this.render(); }, 'Sin granos: solo cajas, cintas, mecanismos y motores'),
-      checkInput(config.airOnly, (value) => { config.airOnly = value; this.live({ rate: value || config.noGrains ? 0 : config.rate }); }, 'Solo aire (sin granos): ver el flujo'),
+      !config.initialFill.enabled?checkInput(config.noGrains, (value) => { config.noGrains = value; this.live({ rate: value || config.airOnly ? 0 : config.rate }); this.render(); }, 'Sin granos: solo cajas, cintas, mecanismos y motores'):null,
+      !config.initialFill.enabled?checkInput(config.airOnly, (value) => { config.airOnly = value; this.live({ rate: value || config.noGrains ? 0 : config.rate }); }, 'Solo aire (sin granos): ver el flujo'):null,
       el('b', { text: 'Viento (velocidad del aire)' }),
       triple('Vector', config.wind, (value) => { config.wind = value; this.live({ wind: value }); }, 'mm/s'),
       el('div', { class: 'row-wrap' },

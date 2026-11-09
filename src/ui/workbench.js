@@ -1,3 +1,4 @@
+import {createCadTools} from './cadTools.js';
 import { el, button, selectInput, field } from './dom.js';
 import { downloadBlob, listRevisions, clearRevisions } from '../io/persistence.js';
 import { parseProject } from '../core/projectModel.js';
@@ -22,12 +23,13 @@ export function createWorkbench(viewer, hooks) {
   let measuring=false,first=null,measureBodies=false;
   const measure=button('Medir 2 puntos',()=>{
     measuring=!measuring;first=null;measureBodies=false;measure.classList.toggle('active',measuring);
-    viewer.cancelPlacement();
+    viewer.cancelPlacement();cad.reset();
     if(measuring){hooks.stopTools();hooks.status('Medición: tocá dos puntos sobre las superficies. Escape cancela.');}
     else viewer.clearGuides();
   });
-  const clearance=button('Separación mínima',()=>{measureBodies=true;measuring=true;first=null;hooks.stopTools();hooks.status('Conjunto: elegí dos cuerpos para medir su separación mínima B-Rep.');});
+  const clearance=button('Separación mínima',()=>{cad.reset();measureBodies=true;measuring=true;first=null;hooks.stopTools();hooks.status('Conjunto: elegí dos cuerpos para medir su separación mínima B-Rep.');});
   tools.append(measure,clearance);
+  const cad=createCadTools(viewer,{...hooks,stopTools:()=>{measuring=false;first=null;measureBodies=false;measure.classList.remove('active');hooks.stopTools();}});tools.append(cad.root);
   viewer.canvas.addEventListener('pointerup',async event=>{
     if(!measuring||event.button>0)return;
     const found=viewer.surfaceAt(event);if(!found)return;
@@ -94,7 +96,7 @@ export function createWorkbench(viewer, hooks) {
     }
   },true);
   viewer.onContextError=(message)=>hooks.status(message,true);
-  return { setSaving(kind){saved.textContent={saving:'Guardando…',saved:'Guardado local',error:'Error al guardar. Descargá el proyecto o reintentá.'}[kind]??kind; saved.dataset.state=kind;retry.hidden=kind!=='error';}, sync(){first=null;updateSection();} };
+  return { setSaving(kind){saved.textContent={saving:'Guardando…',saved:'Guardado local',error:'Error al guardar. Descargá el proyecto o reintentá.'}[kind]??kind; saved.dataset.state=kind;retry.hidden=kind!=='error';}, sync(){first=null;cad.reset();updateSection();} };
 }
 export function downloadCsv(filename, rows) {
   const cell=value=>{let text=String(value??'');if(/^[\s]*[=+@-]/.test(text)&&typeof value!=='number')text=`'${text}`;return `"${text.replace(/"/g,'""')}"`;};

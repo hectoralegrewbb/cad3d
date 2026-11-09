@@ -20,3 +20,8 @@ La validación visual real en 320/768/1024 px y Android forma parte de la lista 
 
 Controles dentro del panel existente, sin nuevos anchos fijos. Progreso nativo con etiqueta accesible para el asentamiento; preparación con mensaje de etapa y errores recuperables mediante corrección/reinicio. Masa, nivel y alcance del modo visibles junto a los controles. No hay nuevas animaciones. Verificar manualmente panel y foco en 320, 768 y 1024+ px.
 
+
+
+## 0.3.0
+
+Herramientas agrupadas dentro del panel fluido existente, sin anchos fijos nuevos. Cálculos con etapa, resultados con aria-live, errores recuperables, botones de aplicar/exportar deshabilitados sin datos, Escape cancela y restaura vista previa. No se agregan animaciones. Revisión visual 320/768/1024+ pendiente por acceso del navegador al servidor local.

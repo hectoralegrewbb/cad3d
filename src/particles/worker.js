@@ -96,7 +96,7 @@ onmessage = ({ data }) => {
         } else {
           if (!body.vertices) throw new Error('Falta la geometría de un cuerpo');
           postMessage({ type: 'progress', done: index, total, name: body.label ?? '' });
-          entry = { sdf: buildSdf(body.vertices, body.triangles, { cell, band }), mesh: { vertices: body.vertices, triangles: body.triangles } };
+          entry = { sdf: buildSdf(body.vertices, body.triangles, { cell, band }), mesh: { vertices: body.vertices, triangles: body.triangles, normals:body.normals } };
           if (body.cacheKey) {
             cache.set(body.cacheKey, entry);
             while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
@@ -108,7 +108,7 @@ onmessage = ({ data }) => {
       sim.setScene(data.scene ?? {});
       if(data.fill)sim.initializeFill(data.fill);
       pending = 0;
-      postMessage({ type: 'ready', cell: bodies.map((body) => body.sdf.cell), keys: [...cache.keys()], fill: data.fill ? {positions:data.fill.positions,h:data.fill.h,info:sim.fillInfo()} : null });
+      postMessage({ type: 'ready', cell: bodies.map((body) => body.sdf.cell), keys: [...cache.keys()], fill: null });
     } catch (error) {
       postMessage({ type: 'error', message: error?.message ?? String(error) });
     }

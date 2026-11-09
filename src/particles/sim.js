@@ -1,3 +1,4 @@
+import {MeshCollider} from './meshCollider.js';
 import { HopperLoad } from './hopperLoad.js';
 import { sampleSdf } from './sdf.js';
 import { evaluateActions } from '../core/actions.js';
@@ -109,16 +110,12 @@ export class ParticleSim {
   }
 
   initializeFill(plan) {
+    if(this.count)throw new Error('La carga inicial requiere una simulación nueva. Usá Reiniciar.');
     if(this.liquid)throw new Error('El llenado inicial de tolva requiere un material granular');
     this.hopper=new HopperLoad(plan,this.s.initialFill,this.s.density);
-    const candidates=this.hopper.candidates;
-    // Sembrar solamente la zona de salida; el resto del material permanece en el reservorio.
-    for(const index of candidates){
-      if(this.count>=Math.min(this.cap,1000))break;
-      const point=this.hopper.point(index);
-      if(this.fillPointFree(point)&&this.hopper.take())this.addFillParticle(point);
-    }
-    if(this.hopper.totalSolid>=this.hopper.parcelVolume&&!this.count)throw new Error('No cabe ninguna partícula en la zona inferior de la tolva. Reducí el radio de salida o revisá la cavidad.');
+    for(const body of this.bodies)if(body.mesh)body.collider=new MeshCollider(body.mesh);
+    this.fillCrossed=new Uint8Array(this.max);
+    this.hopper.seed(point=>this.bodies.every(body=>this.bodyDistance(body,...point)>this.s.radius*1.05),point=>this.addFillParticle(point),Math.min(this.cap,this.max));
     this.initialCount=this.count;
   }
 
@@ -135,7 +132,7 @@ export class ParticleSim {
     this.asleep[this.count]=0;this.calm[this.count]=0;this.pEps[this.count]=1;this.count++;
   }
 
-  fillInfo() {return this.hopper?.info(this.time,this.count,this.exited)??null;}
+  fillInfo() {return this.hopper?.info(this.time,this.count,this.exited,this.x)??null;}
 
   random() {
     this.rng = (Math.imul(this.rng, 1664525) + 1013904223) >>> 0;
@@ -143,6 +140,10 @@ export class ParticleSim {
   }
 
   setSettings(patch) {
+    if(this.hopper){
+      if(patch.fillOpen!==undefined){this.hopper.open=!!patch.fillOpen&&this.time>=this.hopper.options.settleSeconds;this.wakeAll();}
+      if(patch.fillAir!==undefined){this.hopper.airEnabled=!!patch.fillAir;this.wakeAll();}
+    }
     this.s = { ...this.s, ...patch };
     this.liftSpeed = this.s.grain > 0 && this.s.density > 0 ? 500 * terminalVelocity({ diameter: this.s.grain / 1000, density: this.s.density }) : 0;
     this.cap = Math.min(this.s.cap, this.max);
@@ -307,7 +308,7 @@ export class ParticleSim {
     const volume = mass / density;
     const { x, v, count, airVel, pEps } = this;
     air.beginDeposit();
-    if(this.hopper&&this.time>=this.hopper.options.settleSeconds)this.hopper.deposit(air,relaxation,diameter);
+
     for (let i = 0; i < count; i += 1) {
       const a = i * 3;
       const slip = Math.sqrt((airVel[a] - v[a]) * (airVel[a] - v[a]) + (airVel[a + 1] - v[a + 1]) * (airVel[a + 1] - v[a + 1]) + (airVel[a + 2] - v[a + 2]) * (airVel[a + 2] - v[a + 2])) / 1000;
@@ -680,23 +681,18 @@ export class ParticleSim {
         lz = pz + rz;
       }
     }
-    return sampleSdf(body.sdf, lx, ly, lz, this.grad);
+    return this.localDistance(body,lx,ly,lz,this.grad);
+  }
+
+  localDistance(body,x,y,z,gradient) {
+    const d=sampleSdf(body.sdf,x,y,z,gradient);
+    const reach=this.s.radius*1.1+body.sdf.cell*2;
+    if(body.collider&&Math.abs(d)<Math.min(reach,body.sdf.band*(1-1e-6))){const exact=body.collider.distance(x,y,z,gradient,reach);if(exact!==null)return exact;}
+    return d;
   }
 
   spawn(dt) {
-    if(this.hopper){
-      if(this.time<this.hopper.options.settleSeconds)return;
-      const load=this.hopper;
-      this.spawnCarry=Math.min(8,this.spawnCarry+load.options.feedRate*dt);
-      let attempts=0;
-      while(this.spawnCarry>=1&&this.count<Math.min(this.cap,this.max)&&attempts++<24&&load.remainingSolid>=load.parcelVolume){
-        const index=load.candidates[Math.floor(this.random()*load.candidates.length)],point=load.point(index);
-        if(!this.fillPointFree(point))continue;
-        if(!load.take())break;
-        this.addFillParticle(point);this.spawnCarry--;
-      }
-      return;
-    }
+    if(this.hopper)return; // carga inicial cerrada: no se generan granos durante la descarga
     const { emitter, rate, radius } = this.s;
     this.spawnCarry += rate * dt;
     while (this.spawnCarry >= 1 && this.count < this.cap) {
@@ -820,6 +816,7 @@ export class ParticleSim {
         }
       }
     }
+    if(this.hopper&&found>=capacity)throw new Error('Se agotó la capacidad de contactos. La corrida se detuvo para no omitir interacciones.');
     this.pairCount = found;
     this.pairNormal.fill(0, 0, found / 2);
     this.pairCut.fill(0, 0, found / 2);
@@ -1291,7 +1288,7 @@ export class ParticleSim {
             lz = pz + rz;
           }
         }
-        const d = sampleSdf(sdf, lx, ly, lz, grad);
+        const d = this.localDistance(body,lx,ly,lz,grad);
         if (d >= radius * 1.03) continue; // piel: un grano apoyado justo en la pared sigue sosteniendo carga y fricción
         let gx = grad[0];
         let gy = grad[1];
@@ -1419,11 +1416,12 @@ export class ParticleSim {
     this.computeOverburden();
     this.loadUnit = gravity * h * h;
     const settling=!!this.hopper&&this.time<this.hopper.options.settleSeconds;
-    const gridAir = !!this.air && !settling;
+    const airEnabled=!this.hopper||this.hopper.airEnabled;
+    const gridAir = !!this.air && !settling && airEnabled;
     const airStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
     if (gridAir) this.updateAir(dt);
     const airSpent = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - airStart;
-    const jets = !settling && !gridAir && this.nozzles.length > 0;
+    const jets = airEnabled && !settling && !gridAir && this.nozzles.length > 0;
     // chorros analíticos o viento parejo sin grilla: no hay campo por grano para decidir quién despega, se despierta todo
     if (this.sleepers && (jets || (!gridAir && Math.hypot(...wind) > this.liftSpeed))) this.wakeAll();
     const physical = !this.liquid && this.s.physicalDrag !== false && this.s.grain > 0 && this.s.density > 0; // Schiller-Naumann / Wen-Yu / Ergun con el grano real
@@ -1438,9 +1436,9 @@ export class ParticleSim {
       for (let i = 0; i < this.count; i += 1) {
         if (this.asleep[i]) continue;
         const a = i * 3;
-        let wx = settling ? 0 : wind[0];
-        let wy = settling ? 0 : wind[1];
-        let wz = settling ? 0 : wind[2];
+        let wx = settling||!airEnabled ? 0 : wind[0];
+        let wy = settling||!airEnabled ? 0 : wind[1];
+        let wz = settling||!airEnabled ? 0 : wind[2];
         if (gridAir) {
           wx = this.airVel[a];
           wy = this.airVel[a + 1];
@@ -1484,9 +1482,14 @@ export class ParticleSim {
           this.solveBodies(h);
         }
       }
-      if(settling){
-        const bottom=this.hopper.minZ-this.s.radius;
-        for(let i=0;i<this.count;i++)if(x[i*3+2]<bottom)x[i*3+2]=bottom;
+      if(this.hopper&&!this.hopper.open){
+        const bottom=this.hopper.minZ+this.s.radius;
+        for(let i=0;i<this.count;i++){
+          const at=i*3;
+          if(x[at+2]<bottom&&prev[at+2]>=bottom-1e-5)x[at+2]=bottom;
+          const o=this.hopper.options,axis=o.outletAxis,u=(axis+1)%3,v=(axis+2)%3,limit=o.outletPosition-o.outletSign*radius;
+          if((prev[at+axis]-limit)*o.outletSign<=1e-5&&(x[at+axis]-limit)*o.outletSign>0&&Math.hypot(x[at+u]-o.outletU,x[at+v]-o.outletV)<=o.outletRadius+radius){x[at+axis]=limit;this.contact[i]=1;}
+        }
       }
       const keepContact = Math.max(0, 1 - damping * h);
       for (let i = 0; i < this.count; i += 1) {
@@ -1513,6 +1516,7 @@ export class ParticleSim {
       if (this.liquid) this.smoothVelocities();
     }
     this.time += dt;
+    if(this.hopper)this.hopper.track(this.frameStart,this.x,this.count,dt,this.time,this.fillCrossed);
     this.cullExits(floorZ);
     if (this.rigid.count) this.cullProducts(floorZ);
     this.updateSleep();
@@ -1704,6 +1708,7 @@ export class ParticleSim {
     let write = 0;
     for (let i = 0; i < this.count; i += 1) {
       const a = i * 3;
+      if(this.hopper&&![x[a],x[a+1],x[a+2]].every(Number.isFinite))throw new Error('Estado DEM no finito. Se detuvo la corrida sin contabilizar una salida falsa.');
       if (x[a + 2] < floorZ || !Number.isFinite(x[a])) {
         this.exited += 1;
         this.exitSum[0] += prev[a];
@@ -1726,6 +1731,7 @@ export class ParticleSim {
         v[b + 2] = v[a + 2];
         this.asleep[write] = this.asleep[i];
         this.calm[write] = this.calm[i];
+        if(this.fillCrossed)this.fillCrossed[write]=this.fillCrossed[i];
       }
       write += 1;
     }
@@ -1773,6 +1779,7 @@ export class ParticleSim {
 
   // Adapta el tope de partículas al costo medido (objetivo ≈ 9 ms por cuadro de 16,7 ms).
   adapt() {
+    if(this.hopper)return; // preservar todas las partículas y la carga elegida
     if (this.air && !this.solverMode) {
       // si resolver el aire cuesta mucho por cuadro, se resuelve más espaciado
       if (this.air.stepCost > 14 && this.s.airEvery < 8) this.s.airEvery += 1;

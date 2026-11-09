@@ -1,7 +1,7 @@
 {
  "format": "elcad3d-project",
  "version": 1,
- "name": "Tolva llena - ensayo hibrido",
+ "name": "Tolva - carga dinamica completa",
  "parts": [
   {
    "id": "p1",
@@ -487,7 +487,15 @@
    "settleSeconds": 2,
    "radius": 3,
    "packing": 0.6,
-   "feedRate": 150
+   "feedRate": 150,
+   "execution": "slow",
+   "budget": 600000,
+   "outletAxis": 0,
+   "outletPosition": 700,
+   "outletSign": 1,
+   "outletU": 0,
+   "outletV": 383,
+   "outletRadius": 135
   }
  }
 }

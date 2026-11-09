@@ -73,7 +73,7 @@ export const transmissionItems = [
     },
   },
   {
-    id: 'rueda-cadena', category, label: 'Rueda dentada para cadena de rodillos (ISO 606 / ANSI, simple a triple)',
+    id: 'rueda-cadena', category, label: 'Rueda dentada para cadena de rodillos (ISO 606 / ASA-ANSI B29.1, simple a triple)',
     ask: [
       { name: 'chain', label: `Cadena (número): ${chainIds.map((id, k) => `${k + 1}=${chainTable[id].label}`).join(' · ')}`, value: 3 },
       { name: 'z', label: 'Cantidad de dientes (9–120)', value: 19 },

@@ -122,6 +122,22 @@ export function buildViewModel(rep, shape, info, config) {
     const facing = Math.abs(gear.vector[0] * direction[0] + gear.vector[1] * direction[1] + gear.vector[2] * direction[2]);
     if (facing > 0.999) threadMarks.push({ mode: 'pitch', center: map(gear.center), radius: gear.rp });
   });
+  // Ruedas de cadena vistas de frente: círculo primitivo (línea de ejes) y de pie (fina) + datos para acotar Ø exterior/primitivo/pie.
+  const sprockets = [];
+  (info.sprockets3d ?? []).forEach((sprocket) => {
+    const facing = Math.abs(sprocket.vector[0] * direction[0] + sprocket.vector[1] * direction[1] + sprocket.vector[2] * direction[2]);
+    const center = map(sprocket.center);
+    const ra = sprocket.geo.da / 2;
+    if (facing > 0.999) {
+      threadMarks.push({ mode: 'pitch', center, radius: sprocket.geo.rp }, { mode: 'root', center, radius: sprocket.geo.df / 2 });
+      sprockets.push({ mode: 'face', center, rp: sprocket.geo.rp, ra, rf: sprocket.geo.df / 2 });
+    } else if (facing < 0.001) {
+      // De canto: el eje se ve como una recta; sirve para acotar el Ø exterior y el ancho del dentado.
+      const tip = map([sprocket.center[0] + sprocket.vector[0], sprocket.center[1] + sprocket.vector[1], sprocket.center[2] + sprocket.vector[2]]);
+      const l = Math.hypot(tip[0] - center[0], tip[1] - center[1]) || 1;
+      sprockets.push({ mode: 'edge', center, ra, width: sprocket.geo.width, axis: [(tip[0] - center[0]) / l, (tip[1] - center[1]) / l] });
+    }
+  });
   // Eje de revolución en la vista: de canto (se ve la sección circular) o de costado (se ve el perfil).
   let revolveView = null;
   if (revolve) {
@@ -151,6 +167,7 @@ export function buildViewModel(rep, shape, info, config) {
     corners: cornerPoints(visible),
     circles: projectedCircles,
     threadMarks,
+    sprockets,
     map,
   };
 }

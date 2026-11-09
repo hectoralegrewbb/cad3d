@@ -37,11 +37,12 @@ Se conserva DocumentStore y sus transacciones de gesto. La interfaz registra ade
 
 La suite del visor valida geometría y matrices con Three.js en Node; no equivale a una validación visual en Chromium/Android.
 
-## Reservorio de tolva
+## Carga dinámica 0.3.0
 
-Se mantiene la estructura de módulos. El cálculo de cavidad cruza la API de geometría IO; las mallas están en coordenadas del mundo. La intersección de rayos X/Y distingue el hueco entre paredes finas sin engrosarlas. La nube se ordena por Z y su drawRange sigue el volumen restante. Capacidad aproximada; no es un solver de superficies libres.
+`HopperLoad` administra la siembra completa FCC, compuerta virtual, métricas y sección finita. `ParticleSim` mantiene todos los estados dinámicos; no recibe un reservorio ni genera granos al descargar. Presupuesto de carga separado del tope adaptativo de emisión. `MeshCollider` refina contactos por BVH de triángulos sólo en banda próxima a pared; el SDF saturado conserva la fase amplia. Las cargas completas no reducen su cantidad por rendimiento. Fallos de capacidad o valores no finitos se informan.
 
-El reservorio estacionario y las partículas locales conservan masa contable. El reservorio deposita volumen sólido y arrastre en la grilla del aire; no transmite el peso completo a las colisiones DEM. Transferencia limitada por parámetro, espacio libre y presupuesto de partículas. No usar sus tasas como predicción de vaciado espontáneo.
+## Herramientas CAD 0.3.0
 
-La reparación STL conserva el camino existente. Sólo si falla su validación intenta emparejar caras opuestas alrededor de aristas múltiples, exige sólidos válidos y volumen próximo al original; de lo contrario conserva el error.
+`core/inspection.js` inspecciona conectividad y contornos; `core/alignment.js` resuelve colocación rígida Rz·Ry·Rx. `kernel/inspection.js` consulta caras/aristas y calcula intersecciones B-Rep. Área/perímetro/DXF se obtienen de contornos muestreados; no se presentan como curvas analíticas exactas. Se conservan huecos por profundidad de anidación y se rechazan contornos ambiguos para exportar.
 
+`createCadTools(viewer,hooks)` recibe sólo APIs públicas de la composición. Las consultas no modifican el documento. La vista previa mueve únicamente matrices de sesión; aplicar valida la firma del proyecto y usa el comando existente de instancias. Instancias fijas, relacionadas o accionadas se rechazan. No se crean relaciones persistentes. Visibilidad de sesión restaurada al cambiar pieza/proyecto/ámbito.

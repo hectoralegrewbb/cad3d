@@ -1,3 +1,21 @@
+## 0.3.1 — 2026-11-08 — Cadenas ASA/ANSI y DXF para láser
+
+- Ruedas de cadena: serie A rotulada «ASA n / ANSI n» (ASA 40 = ANSI 40, paso 1/2"). Geometría ANSI B29.1: asiento Ø = 1,005·Ø rodillo + 0,076 mm y ancho de diente (0,93 | 0,95)·b1 − 0,15 mm; la serie B (ISO 606) no cambia. Las claves internas (`A40`…) se conservan.
+- Los piñones nuevos llevan los asientos como arcos exactos (bulge) en el boceto; los guardados siguen con sus segmentos.
+- Plano del piñón: Ø exterior, Ø primitivo y Ø pie (vista de frente, con círculos primitivo y de pie), Ø exterior y ancho del dentado de canto, y notas con designación ASA y medidas (paso, dientes, Ø rodillo, ancho interior, Ø asiento, ancho de diente).
+- DXF para láser (botones «DXF láser» y «DXF láser R12», y en Propiedades de la rueda): 1:1 en mm, capa CORTE, desde la cara plana más grande del B-Rep real (contorno, agujeros, chaflanes y radios de boceto, cortes). Lo interior va primero y la esquina inferior izquierda queda en (0, 0). R2000: polilínea cerrada con arcos; R12: líneas, arcos y círculos. No compensa kerf.
+- Corrección: los chaflanes y radios por vértice de una polilínea se aplicaban dos veces (error «no cabe» o recursión infinita).
+- Pruebas: `sprocket.test.mjs` cubre ASA 40, el plano y el DXF para láser (piñón con agujeros y chapa chaflanada).
+
+## 0.3.0 — 2026-11-06 — Cambios aprobados
+
+- Sustitución del reservorio por carga completa de partículas dinámicas PBD. Red FCC, presupuesto explícito (hasta 600.000), cálculo lento y rechazo de cargas parciales. No se agranda el radio para cubrir volumen.
+- Controles independientes de descarga virtual y aire; no hay emisión adicional. Medición de primer cruce por disco de salida y masa por segundo simulado. Cancelar carga completa termina el worker.
+- Contactos refinados contra triángulos cerca de paredes finas; agotamiento de pares o estado no finito detiene la corrida en vez de ocultarlo.
+- CAD: ocultar/aislar/restaurar, inspector de malla y operaciones fallidas, sección B-Rep o de malla, DXF de contornos, longitud/radio/diámetro/área/ángulos y colocación por caras/ejes con vista previa y aplicación deshacible.
+- IDs de caras preservados en mallas compartidas para consultar referencias B-Rep. Transformaciones existentes sin cambiar el formato de proyecto.
+- Pendiente: QA visual y responsive real, calibración industrial, estabilidad/convergencia de cargas grandes, aceleración de los contactos y validación experimental de descarga. Sin refactorizaciones adicionales.
+
 ## 0.2.2 — Carga inicial de tolva (aprobada)
 
 - Carga inicial 0–100 %, selección de tolva fija, asentamiento local y reservorio volumétrico con DEM local. Radio de salida independiente de la nube visual; resistencia porosa del reservorio en aire calculado.

@@ -1,3 +1,92 @@
+# Resultados vigentes — 0.3.0
+
+Fecha: 2026-11-06. Node 24.22.1.
+
+- Suite general: **57/57 archivos aprobados**. Se agregó después `cadTools.test.mjs`, aprobado, para eventos de vista previa, aplicar/cancelar, centro de sección e invalidación. Total de archivos de prueba actuales verificados: **58**. Las últimas ampliaciones de hopperFill, inspection y viewerShared se verificaron por separado; sin fallos.
+- Sintaxis e importaciones locales verificadas en 138 módulos fuente, sin errores.
+- Carga física: 0/25/50/100 %, retención cerrada, descarga por gravedad sin emisión, masa, rechazo de presupuesto insuficiente, primer cruce por sección finita sin duplicados y chapa de 0,2 mm contra SDF de 4 mm: aprobados.
+- CAD: sección de caja de 10×20 mm da 200 mm² y perímetro 60 mm; tubo descuenta el hueco; DXF exportado se reimporta. Radio, longitud y área B-Rep, cara de instancia rotada/trasladada, alineación con giro adicional, historial y serialización: aprobados.
+- Visor: ocultar/restaurar y previsualizar/cancelar conservan las matrices base; prueba sin GPU.
+- Integración de `Tolva_prueba_escala.proj3d`: solver calculado activo sin fallback, toda la carga participa, aire/descarga habilitados después del intervalo previo, coordenadas finitas y masa conservada durante los primeros 0,32 s simulados. No es prueba de vaciado completo.
+
+## Costo del conjunto recibido
+
+Benchmark de los primeros 3 pasos con refinamiento de triángulos: **487.580 partículas**, ~550 MiB RSS, 2,6–3,0 s reales por paso de 1/60 s simulado. Ningún centro fuera de la envolvente lateral en esos primeros pasos; 0 salidas y masa contable conservada. Son mediciones de este entorno, no garantía de FPS ni estabilidad del vaciado completo. La compactación aumenta el costo.
+
+También se ejecutaron 125 pasos con la versión previa del contacto SDF dentro de este desarrollo: conservó la masa, pero no se usa ese resultado como validación de la versión final de contactos. El benchmark reproducible vigente usa los 3 primeros pasos, para evitar presentar una validación más extensa de la que se completó con el motor final.
+
+## Pendiente / alcance
+
+El navegador de revisión no pudo acceder al servidor local (conexión rechazada). No se completó QA visual real, responsive o IndexedDB interactivo; los eventos de UI se verifican con un DOM mínimo sin layout. Ver VERIFICACION.md para pasos manuales.
+
+La dinámica PBD y el aire son aproximados. No se certificaron puentes, presión de toda la carga, caudal industrial, descarga completa del conjunto real ni estanqueidad de sus uniones. El porcentaje efectivo y la masa inicial proceden de las partículas realmente colocadas.
+
+```text
+PASS actions.test.mjs
+PASS advanced.test.mjs
+PASS airParticles.test.mjs
+PASS airSlice.test.mjs
+PASS airSolver.test.mjs
+PASS airflow.test.mjs
+PASS batchMesh.test.mjs
+PASS belt.test.mjs
+PASS corners.test.mjs
+PASS dimText.test.mjs
+PASS drag.test.mjs
+PASS drawing.test.mjs
+PASS dwgImport.test.mjs
+PASS dxfImport.test.mjs
+PASS frame.test.mjs
+PASS frameGeometry.test.mjs
+PASS gear.test.mjs
+PASS gearPair.test.mjs
+PASS granular.test.mjs
+PASS hardening.test.mjs
+PASS holes.test.mjs
+PASS hopperFill.test.mjs
+PASS inspection.test.mjs
+PASS kernel.test.mjs
+PASS kernelService.test.mjs
+PASS kinematics.test.mjs
+PASS library.test.mjs
+PASS libraryScenes.test.mjs
+PASS massProps.test.mjs
+PASS meshOnly.test.mjs
+PASS meshSimplify.test.mjs
+PASS motion.test.mjs
+PASS motors.test.mjs
+PASS move.test.mjs
+PASS moveSnap.test.mjs
+PASS particles.test.mjs
+PASS pcg.test.mjs
+PASS products.test.mjs
+PASS recorder.test.mjs
+PASS reference.test.mjs
+PASS rigid.test.mjs
+PASS rotor.test.mjs
+PASS rotorDynamics.test.mjs
+PASS scene.test.mjs
+PASS screw.test.mjs
+PASS server.test.mjs
+PASS shapeOps.test.mjs
+PASS sketch.test.mjs
+PASS sketchDistance.test.mjs
+PASS sprocket.test.mjs
+PASS stlImport.test.mjs
+PASS thread.test.mjs
+PASS transmission.test.mjs
+PASS turn.test.mjs
+PASS viewerShared.test.mjs
+PASS views.test.mjs
+PASS weld.test.mjs
+RESULTADO: 57/57 archivos aprobados
+PASS cadTools.test.mjs (adicional después de la suite)
+```
+
+---
+
+Resultados históricos anteriores; el reservorio 0.2.2 fue sustituido.
+
 # Resultados — 0.2.2
 
 Fecha: 2026-11-03. Node 24.22.1.

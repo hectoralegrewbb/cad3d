@@ -1,3 +1,13 @@
+# Actualización 0.3.0 — carga dinámica y herramientas CAD
+
+Ejecutar `npm start`. El llenado se reemplazó por partículas dinámicas en todo el volumen; no hay reservorio visual ni emisión artificial durante el vaciado.
+
+Para una primera prueba abrir `examples/Tolva_prueba_escala.proj3d`, pasar a **Conjunto → Partículas → Iniciar**, esperar el asentamiento y pulsar **Abrir descarga**. Activar aire por separado. Es una copia a escala 0,08; no representa las dimensiones reales. El conjunto original configurado está en `examples/Tolva_llena.proj3d` y exige cálculo lento.
+
+Herramientas nuevas en **Herramientas de vista y proyecto → Inspección y montaje CAD**: visibilidad, inspector, sección/DXF, medidas B-Rep y alineación con vista previa.
+
+Consultar `examples/LEEME.md`, `docs/GUIA_USUARIO.md` y `docs/RESULTADOS.md`. Las notas 0.2.2 siguientes son históricas y describen el reservorio sustituido.
+
 > **0.2.2 — Tolva cargada:** iniciar con `npm start` (equivale a `node serve.mjs`). Abrir `examples/Tolva_llena.proj3d`, pasar a **Conjunto → Partículas → Iniciar**. Consultar `examples/LEEME.md` antes de interpretar resultados.
 
 > **Actualización 0.2.1:** consultar [cambios aprobados](docs/CHANGELOG.md), [arquitectura](docs/ARCHITECTURE.md) y [verificación](docs/VERIFICACION.md). Se mantienen formatos y estructura existentes.

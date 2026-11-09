@@ -69,6 +69,7 @@ export class ParticleRunner {
     return new Promise((resolve, reject) => {
       const worker = this.ensureWorker();
       this.pendingStart = { resolve, reject };
+      this.heavy=!!fill;
       const radiusKey = `${settings.radius}${scene?.feeders?.length ? 'b' : ''}`; // las mallas con cajas usan otra banda de SDF
       const payload = bodies.map((body) => {
         const cacheKey = `${body.label ?? ''}|${meshHash(body.vertices)}|${meshHash(body.triangles)}|${radiusKey}`;
@@ -107,6 +108,7 @@ export class ParticleRunner {
   }
 
   stop() {
+    if(this.heavy){this.heavy=false;this.dispose();return;}
     this.pendingStart?.reject(new Error('Simulación cancelada')); this.pendingStart=null;
     clearTimeout(this.idleTimer);
     this.live = false;

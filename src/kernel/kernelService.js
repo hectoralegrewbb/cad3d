@@ -1,8 +1,10 @@
+import {describeEntity,exactSection} from './inspection.js';
 import { weldAssembly } from './assemblyWeld.js';
 import { buildPart, hasMeshFeature, withoutSimplify } from './partBuilder.js';
 import { extractMesh } from './meshExtractor.js';
 import { removeBody } from './shapeOps.js';
 import { exportStep, exportStl, exportMeshStl } from './exporters.js';
+import { planarFaceLoops } from './laserOutline.js';
 import { exportThreeMf } from './threeMf.js';
 import { buildAssembly, placeShape, pruneAssemblyCache, safeTravel } from './assemblyBuilder.js';
 import { buildDrawing } from '../drawing/buildDrawing.js';
@@ -264,6 +266,12 @@ export function createKernelService(rep) {
       return exportThreeMf([{ name, shape: current.shape }]);
     },
 
+    // Lazos (exterior + agujeros) de la cara plana más grande de la pieza activa, para el DXF de láser.
+    laserOutline({ faceId } = {}) {
+      if (!current?.shape) throw new Error('No hay geometría para exportar');
+      return planarFaceLoops(rep, current.shape, { faceId });
+    },
+
     // Reconstruye el ensamble. Devuelve instancias (sin formas), interferencias, lista de materiales y la malla de cada instancia.
     buildAssembly({ project, withItems = true, sharedItems = false }) {
       const previous = assembly;
@@ -292,6 +300,25 @@ export function createKernelService(rep) {
         sharedMeshes: withItems && sharedItems ? Object.fromEntries(parts.filter(p=>p.mesh).map(p=>[p.id,structuredClone(p.mesh)])) : null,
         meshes: withItems && !sharedItems ? Object.fromEntries(instances.map((inst) => [inst.id, structuredClone(inst.mesh)])) : null,
       };
+    },
+
+    inspectEntity({itemId,faceId,edgeIndex}) {
+      const instance=assembly?.instances.find(i=>i.id===itemId);
+      const shape=instance?assembly.parts.find(p=>p.id===instance.partId)?.shape:current?.shape;
+      if(instance?.meshOnly||(!instance&&!['part',null,undefined].includes(itemId)))throw new Error('Elegí una pieza B-Rep sin grupos de movimiento.');
+      const result=describeEntity(rep,shape,{faceId,edgeIndex});
+      if(instance&&result.origin){
+        const dot=rep.makeVertex(result.origin),placed=placeShape(dot,instance);dot.delete();result.origin=placed.asTuple();placed.delete();
+        if(result.normal){const angles=instance.rot.map(v=>v*Math.PI/180);let [x,y,z]=result.normal;let c=Math.cos(angles[0]),s=Math.sin(angles[0]);[y,z]=[c*y-s*z,s*y+c*z];c=Math.cos(angles[1]);s=Math.sin(angles[1]);[x,z]=[c*x+s*z,-s*x+c*z];c=Math.cos(angles[2]);s=Math.sin(angles[2]);result.normal=[c*x-s*y,s*x+c*y,z];
+        }
+      }
+      return result;
+    },
+    sectionGeometry({itemId,axis,position}) {
+      const instance=assembly?.instances.find(i=>i.id===itemId);
+      if(!instance&&!['part',null,undefined].includes(itemId))throw new Error('Elegí una pieza B-Rep sin grupos de movimiento.');
+      if(instance?.meshOnly)throw new Error('Esta pieza es sólo malla. Usá la sección aproximada.');
+      return exactSection(rep,instance?.shape??current?.shape,axis,position);
     },
 
     measureBodies({ first, second }) {

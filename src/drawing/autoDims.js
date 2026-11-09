@@ -422,19 +422,42 @@ function autoDimensionsRaw(view, { scale, options = {} }) {
     }
   }
 
+  // Rueda de cadena vista de frente: Ø exterior, Ø primitivo y Ø pie (en lugar de las cotas generales de la silueta dentada).
+  const sprocket = settings.diameters ? (view.sprockets ?? []).find((item) => item.mode === 'face') : null;
+  if (sprocket) {
+    // Rótulos fijos (arriba a la derecha, abajo a la derecha y arriba a la izquierda); el codo sale más allá de la punta de los dientes.
+    [['Ø exterior', sprocket.ra, 62], ['Ø primitivo', sprocket.rp, 330], ['Ø pie', sprocket.rf, 150]].forEach(([name, radius, angle]) => {
+      const reach = Math.round(Math.max(10, (sprocket.ra - radius) * scale + 9) * 10) / 10;
+      dims.push({ id: uid(id), auto: true, view: id, type: 'diameter', pcd: true, fixed: true, center: sprocket.center, radius, count: 1, text: `${name} ${formatNumber(radius * 2)}`, angle, reach });
+    });
+  }
+  // Rueda de cadena de canto: el Ø exterior (en vez del ancho de la silueta dentada) y el ancho del dentado.
+  const edge = settings.general ? (view.sprockets ?? []).find((item) => item.mode === 'edge') : null;
+  const axisV = Boolean(edge) && Math.abs(edge.axis[1]) > 0.99; // eje vertical en la vista: el Ø se ve como ancho
+  const axisH = Boolean(edge) && Math.abs(edge.axis[0]) > 0.99;
   // Cotas generales y cadenas sobre los vértices de la silueta (no en vistas de canto de piezas de revolución).
-  const dominatedByCircle = circles.some((circle) => near(circle.radius * 2, bbox.width, 0.05) && near(circle.radius * 2, bbox.height, 0.05));
+  const dominatedByCircle = (view.sprockets ?? []).some((item) => item.mode === 'face') || circles.some((circle) => near(circle.radius * 2, bbox.width, 0.05) && near(circle.radius * 2, bbox.height, 0.05));
   if (!dominatedByCircle && !endView && settings.general) {
     const us = thin([bbox.minX, bbox.maxX, ...view.corners.map((p) => p[0])], mm(12));
     const vs = thin([bbox.minY, bbox.maxY, ...view.corners.map((p) => p[1])], mm(12));
     const rowsBelow = unique(dims.filter((d) => d.orientation === 'h').map((d) => d.line)).length;
     const bottom = mm(10) + mm(8) * rowsBelow;
-    const chainU = settings.chains && us.length > 2 && us.length <= 8;
-    const chainV = settings.chains && vs.length > 2 && vs.length <= 8;
+    const chainU = settings.chains && !axisV && us.length > 2 && us.length <= 8;
+    const chainV = settings.chains && !axisH && vs.length > 2 && vs.length <= 8;
+    // Ancho del dentado (de la cara de la rueda hacia el cubo) en una fila propia; el resto se corre una fila.
+    const bandH = axisH ? [linear(view, { orientation: 'h', a: [edge.center[0], bbox.minY], b: [edge.center[0] + edge.width * Math.sign(edge.axis[0]), bbox.minY], line: bbox.minY - bottom })] : [];
+    const bandV = axisV ? [linear(view, { orientation: 'v', a: [bbox.maxX, edge.center[1]], b: [bbox.maxX, edge.center[1] + edge.width * Math.sign(edge.axis[1])], line: bbox.maxX + mm(10) })] : [];
+    const lowerShift = chainU || bandH.length ? mm(8) : 0;
+    const rightShift = chainV || bandV.length ? mm(8) : 0;
+    dims.push(...bandH, ...bandV);
     if (chainU) us.slice(0, -1).forEach((u, i) => dims.push(linear(view, { orientation: 'h', a: [u, bbox.minY], b: [us[i + 1], bbox.minY], line: bbox.minY - bottom })));
-    dims.push(linear(view, { orientation: 'h', a: [bbox.minX, bbox.minY], b: [bbox.maxX, bbox.minY], line: bbox.minY - bottom - (chainU ? mm(8) : 0) }));
+    dims.push(axisV
+      ? linear(view, { orientation: 'h', a: [edge.center[0] - edge.ra, bbox.minY], b: [edge.center[0] + edge.ra, bbox.minY], line: bbox.minY - bottom - lowerShift, diameter: true })
+      : linear(view, { orientation: 'h', a: [bbox.minX, bbox.minY], b: [bbox.maxX, bbox.minY], line: bbox.minY - bottom - lowerShift }));
     if (chainV) vs.slice(0, -1).forEach((v, i) => dims.push(linear(view, { orientation: 'v', a: [bbox.maxX, v], b: [bbox.maxX, vs[i + 1]], line: bbox.maxX + mm(10) })));
-    dims.push(linear(view, { orientation: 'v', a: [bbox.maxX, bbox.minY], b: [bbox.maxX, bbox.maxY], line: bbox.maxX + mm(10) + (chainV ? mm(8) : 0) }));
+    dims.push(axisH
+      ? linear(view, { orientation: 'v', a: [bbox.maxX, edge.center[1] - edge.ra], b: [bbox.maxX, edge.center[1] + edge.ra], line: bbox.maxX + mm(10) + rightShift, diameter: true })
+      : linear(view, { orientation: 'v', a: [bbox.maxX, bbox.minY], b: [bbox.maxX, bbox.maxY], line: bbox.maxX + mm(10) + rightShift }));
   }
   return dims;
 }

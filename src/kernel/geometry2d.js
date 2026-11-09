@@ -67,21 +67,21 @@ export function applyCorners(pts, ops = []) {
     const { r = 0, c = 0 } = ops[i] ?? {};
     const prev = pts[(i + n - 1) % n];
     const next = pts[(i + 1) % n];
-    if (!(r > 0 || c > 0) || prev.bulge || v.bulge) return out.push({ ...v });
+    if (!(r > 0 || c > 0) || prev.bulge || v.bulge) return out.push({ ...v, r: 0, c: 0 }); // r/c en 0: el contorno resultante no se vuelve a redondear
     const u = [prev.x - v.x, prev.y - v.y];
     const w = [next.x - v.x, next.y - v.y];
     const lu = Math.hypot(...u);
     const lw = Math.hypot(...w);
     const cos = Math.max(-1, Math.min(1, (u[0] * w[0] + u[1] * w[1]) / (lu * lw)));
     const theta = Math.acos(cos);
-    if (theta < 1e-3 || Math.abs(theta - Math.PI) < 1e-3) return out.push({ ...v });
+    if (theta < 1e-3 || Math.abs(theta - Math.PI) < 1e-3) return out.push({ ...v, r: 0, c: 0 });
     const t = r > 0 ? r / Math.tan(theta / 2) : c;
     if (t > Math.min(lu, lw) / 2 + 1e-9) throw new Error(`${r > 0 ? 'El radio' : 'El chaflán'} del vértice ${i + 1} no cabe en los tramos vecinos`);
     const a = { x: v.x + (u[0] / lu) * t, y: v.y + (u[1] / lu) * t };
     const b = { x: v.x + (w[0] / lw) * t, y: v.y + (w[1] / lw) * t };
     const turn = -u[0] * w[1] + u[1] * w[0]; // (−u) × w: >0 giro antihorario
     const bulge = r > 0 ? Math.sign(turn) * Math.tan((Math.PI - theta) / 4) : 0;
-    out.push({ ...v, x: a.x, y: a.y, bulge }, { ...v, x: b.x, y: b.y, bulge: 0 });
+    out.push({ ...v, x: a.x, y: a.y, bulge, r: 0, c: 0 }, { ...v, x: b.x, y: b.y, bulge: 0, r: 0, c: 0 });
   });
   return out;
 }

@@ -108,6 +108,7 @@ export function extractMesh(shape, options = null) {
     normals: Float32Array.from(mesh.normals),
     triangles: Uint32Array.from(mesh.triangles),
     edges,
+    faceGroups:mesh.faceGroups,
     bounds: { min, max, size: max.map((value, i) => value - min[i]) },
   };
 }
