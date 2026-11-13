@@ -1,6 +1,7 @@
 import { actionKinds, loopKinds, startKinds, validateActions, linkRatio, linkTypes } from '../core/actions.js';
 import { sceneOps } from '../core/scene.js';
 import { button, checkInput, el, field, selectInput, textInput } from './dom.js';
+import { axisBody, pathBody } from './motionPanel.js';
 
 // Panel ⚡ Acciones y aire: acciones (girar / deslizar / aire) con disparos encadenados + boquillas de aire.
 // `hooks`: { getScene(), setScene(reducer), getTargets() → [{id,label}], pivotFor(ids) → [x,y,z]|null, onPlay(), onStop(), isPlaying() }.
@@ -148,11 +149,14 @@ export class ScenePanel {
       button('↓', () => this.apply((s) => sceneOps.moveAction(s, action.id, 1)), { title: 'Bajar' }),
       button('✕', () => this.apply((s) => sceneOps.removeAction(s, action.id)), { danger: true, title: 'Borrar acción' }));
     if (!open) return el('div', { class: 'scene-card' }, head);
+    const isMotion = action.kind === 'axis' || action.kind === 'path';
     const body = [
       field('Nombre', textInput(action.name, (value) => set({ name: value }))),
-      field('Tipo', selectInput(Object.entries(actionKinds), action.kind, (value) => set({ kind: value, axis: value === 'rotate' ? 'x' : value === 'slide' ? 'z' : value === 'vibrate' ? [0.866, 0, 0.5] : action.axis }))),
+      isMotion ? null : field('Tipo', selectInput(Object.entries(actionKinds).filter(([key]) => key !== 'axis' && key !== 'path'), action.kind, (value) => set({ kind: value, axis: value === 'rotate' ? 'x' : value === 'slide' ? 'z' : value === 'vibrate' ? [0.866, 0, 0.5] : action.axis }))),
     ];
-    if (action.kind === 'air') {
+    if (action.kind === 'path') {
+      body.push(...pathBody(this, action, scene, set));
+    } else if (action.kind === 'air') {
       body.push(
         field('Boquilla', selectInput([['', '— elegí —'], ...scene.nozzles.map((nozzle) => [nozzle.id, nozzle.name || nozzle.id])], action.nozzle ?? '', (value) => set({ nozzle: value || null }))),
         this.num('Nivel final (0–1)', action.level, (value) => set({ level: Math.max(0, Math.min(1, value)) })),
@@ -163,7 +167,10 @@ export class ScenePanel {
         el('div', { class: 'motor-targets' }, el('b', { text: 'Qué se mueve' }), ...targets.map((target) => checkInput(action.targets.includes(target.id), (on) => set({ targets: on ? [...action.targets, target.id] : action.targets.filter((id) => id !== target.id) }), target.label))),
         action.kind === 'vibrate' ? null : field('Eje', selectInput([['x', 'X'], ['y', 'Y'], ['z', 'Z']], typeof action.axis === 'string' ? action.axis : 'z', (value) => set({ axis: value }))),
       );
-      if (action.kind === 'rotate') {
+      if (action.kind === 'axis') {
+        if (action.motion?.type === 'rotary') body.push(this.triple('Pivote (punto por donde pasa el eje)', action.pivot ?? [0, 0, 0], (value) => set({ pivot: value })), button('Pivote = centro de lo elegido', () => Promise.resolve(this.hooks.pivotFor(action.targets)).then((center) => { if (center) set({ pivot: center.map((v) => Math.round(v * 100) / 100) }); }), { title: 'Toma el centro de la caja envolvente de lo tildado' }));
+        body.push(...axisBody(this, action, scene, set));
+      } else if (action.kind === 'rotate') {
         body.push(
           field('Modo', selectInput([['continuous', 'Continuo (rpm)'], ['sweep', 'Barrido (una posición a otra)'], ['valve', 'Válvula / clapeta temporizada (abre · mantiene · cierra)'], ['follow', 'Sigue a otro eje (transmisión)']], action.mode, (value) => set({ mode: value }))),
           action.mode === 'follow'
@@ -231,10 +238,10 @@ export class ScenePanel {
             ]),
         );
       }
-      if (!(action.kind === 'rotate' && action.mode === 'continuous') && action.mode !== 'follow' && action.kind !== 'vibrate') body.push(field('Repetición', selectInput(Object.entries(loopKinds).filter(([key]) => action.mode !== 'valve' || key !== 'pingpong'), action.mode === 'valve' && action.loop === 'pingpong' ? 'loop' : action.loop, (value) => set({ loop: value }))));
+      if (!isMotion && !(action.kind === 'rotate' && action.mode === 'continuous') && action.mode !== 'follow' && action.kind !== 'vibrate') body.push(field('Repetición', selectInput(Object.entries(loopKinds).filter(([key]) => action.mode !== 'valve' || key !== 'pingpong'), action.mode === 'valve' && action.loop === 'pingpong' ? 'loop' : action.loop, (value) => set({ loop: value }))));
     }
     const others = scene.actions.filter((item) => item.id !== action.id);
-    body.push(
+    if (!isMotion) body.push(
       el('b', { text: 'Cuándo arranca' }),
       field('Disparo', selectInput(Object.entries(startKinds), action.start.type, (value) => setStart({ type: value, action: value === 'after' ? (others[0]?.id ?? null) : action.start.action }))),
       action.start.type === 'time' ? this.num('Segundo', action.start.t, (value) => setStart({ t: Math.max(0, value) }), 's') : null,
@@ -342,7 +349,7 @@ export class ScenePanel {
       scene.actions.length === 0 ? el('p', { class: 'muted', text: 'Sin acciones. Creá una: por ejemplo «Deslizar» una guillotina o «Girar» una clapeta.' }) : null,
       ...scene.actions.map((action) => this.actionCard(action, scene, targets)),
       el('div', { class: 'row-wrap' },
-        ...['rotate', 'slide', 'vibrate', 'air'].map((kind) => button(`+ ${actionKinds[kind]}`, () => {
+        ...['rotate', 'slide', 'vibrate', 'air', 'axis', 'path'].map((kind) => button(`+ ${actionKinds[kind]}`, () => {
           const made = sceneOps.addAction(this.hooks.getScene(), kind);
           this.openId = made.id;
           this.apply(() => made.scene);

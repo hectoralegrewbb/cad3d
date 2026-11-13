@@ -3,7 +3,7 @@ import { particleConfig } from '../core/particleConfig.js';
 import { solveAssemblyMates } from '../core/assemblyMates.js';
 import { createWorkbench, downloadCsv } from '../ui/workbench.js';
 import { geometryJob } from '../io/geometryClient.js';
-import { threadZone } from '../kernel/threadGeometry.js';
+import { hasRealThread, threadZone } from '../kernel/threadGeometry.js';
 import { planeFrame } from '../kernel/planes.js';
 import { sketchReference } from '../core/sketchReference.js';
 import { evaluate } from '../core/expression.js';
@@ -702,7 +702,7 @@ const particlePanel = new ParticlePanel(byId('particlePanel'), {
         });
         return { vertices, triangles };
       };
-      const pivotOf = (key) => scene.actions.find((action) => action.kind === 'rotate' && action.targets?.length && bodyKey(action.targets) === key)?.pivot ?? [0, 0, 0];
+      const pivotOf = (key) => scene.actions.find((action) => (action.kind === 'rotate' || (action.kind === 'axis' && action.motion?.type === 'rotary')) && action.targets?.length && bodyKey(action.targets) === key)?.pivot ?? [0, 0, 0];
       const reachOf = (itemIds, pivot) => {
         let reach = 20;
         itemIds.forEach((id) => {
@@ -1192,7 +1192,47 @@ viewer.onEdgePick = (mid) => {
 // Pausa antes de recalcular: si la última reconstrucción fue pesada (rosca real, engranajes grandes) se espera más
 // para no encolar un cálculo por cada tecla mientras se escribe un valor.
 let lastRebuildMs = 0;
+// Filete real: cada reconstrucción lo corta de nuevo (segundos). Mientras se edita se calcula en borrador (rosca cosmética) y el
+// filete real se corta cuando la edición se asienta; si llega otra edición con ese cálculo en curso y ya pasó `refineAbortMs`, se
+// reinicia el motor en vez de esperar en cola (antes la app parecía colgada).
+const refineDelayMs = 900;
+const refineAbortMs = 1200;
+let refineTimer = null;
+let refineJob = null;
+let lastBuildDraft = false;
+
+function scheduleRefine() {
+  clearTimeout(refineTimer);
+  refineTimer = setTimeout(async () => {
+    if (!kernelReady || restarting || scope !== 'part' || !lastBuildDraft) return;
+    setStatus('Calculando filete real de la rosca…');
+    refineJob = { started: performance.now() };
+    try {
+      await rebuild({ full: true });
+    } finally {
+      refineJob = null;
+    }
+  }, refineDelayMs);
+}
+
+async function abortRefine() {
+  if (restarting) return;
+  restarting = true;
+  try {
+    kernelReady = false;
+    await kernel.restart();
+    kernelMB = 0;
+    lastAssembly = null;
+    lastAssemblyMeshes = null;
+  } finally {
+    kernelReady = true;
+    restarting = false;
+    refineJob = null;
+  }
+}
+
 function scheduleRebuild(immediate = false) {
+  clearTimeout(refineTimer);
   clearTimeout(rebuildTimer);
   const wait = immediate ? 0 : Math.min(1500, Math.max(40, lastRebuildMs * 1.5));
   if (!immediate && lastRebuildMs > 400) setStatus('Recalculando…');
@@ -1203,22 +1243,25 @@ let rebuildSeq = 0;
 let viewSeq = 0;
 let rebuildPromise = Promise.resolve();
 // Reconstruye en el motor. Si mientras tanto pidieron otra, esta respuesta se descarta y se espera la más nueva.
-function rebuild() {
-  rebuildPromise = runRebuild();
+// options.full: corta el filete real (exportar, o cuando la edición se asentó). Sin eso, con filete real se calcula en borrador.
+function rebuild(options = {}) {
+  rebuildPromise = runRebuild(options);
   return rebuildPromise;
 }
 
-async function runRebuild() {
+async function runRebuild(options = {}) {
   if (!kernelReady) return;
+  if (refineJob && !options.full && performance.now() - refineJob.started > refineAbortMs) await abortRefine();
   if (!sceneBusy && particleRunner.active) { stopParticles(); particlePanel.stats=null;particlePanel.message='El modelo cambió. Iniciá una nueva corrida para actualizar resultados.'; }
   const started = performance.now();
   const part = store.state;
   const seq = ++rebuildSeq;
   const myView = ++viewSeq;
   const picking = pickingFeatureId;
+  const draft = hasRealThread(part) && !options.full;
   let result;
   try {
-    result = await kernel.request('build', { part, stopBefore: picking, split: splitSpec(part) }, { channel: 'build', latestOnly: true });
+    result = await kernel.request('build', { part, stopBefore: picking, split: splitSpec(part), draftThreads: draft }, { channel: 'build', latestOnly: true });
   } catch (error) {
     setStatus(`Error del kernel: ${error.message}. Usá Herramientas → Recuperar motor.`, true);
     return;
@@ -1227,6 +1270,8 @@ async function runRebuild() {
   if (isSuperseded(result)) return undefined;
   lastBuild = result;
   lastBuiltPart = part;
+  lastBuildDraft = Boolean(result.draftThreads);
+  if (lastBuildDraft) scheduleRefine();
   lastMeshReady = !picking && result.items.length > 0;
   if (myView === viewSeq) { viewer.setMeshes(result.items); workbench?.sync(); }
   refreshPlaneOverlay();
@@ -1546,7 +1591,7 @@ async function exportModel(kind) {
   setStatus('Preparando exportación…');
   try {
     if(scope==='asm')await rebuildAssembly();
-    else if(!lastBuiltPart || lastBuiltPart.features!==store.state.features || lastBuiltPart.params!==store.state.params)await rebuild();
+    else if(lastBuildDraft || !lastBuiltPart || lastBuiltPart.features!==store.state.features || lastBuiltPart.params!==store.state.params)await rebuild({ full: true });
     if(scope==='asm'?!lastAssembly?.hasCompound:!lastBuild?.hasShape)throw new Error('No hay geometría válida para exportar');
     const blob=await kernel.request('export',{kind,scope,name:store.state.meta.name});
     if(isSuperseded(blob))return;
@@ -1558,7 +1603,7 @@ async function exportLaser(format = 'r2000') {
   setStatus('Preparando DXF para láser…');
   try {
     if (scope === 'asm') throw new Error('El DXF para láser sale de una pieza: pasá a Pieza.');
-    if (!lastBuiltPart || lastBuiltPart.features !== store.state.features || lastBuiltPart.params !== store.state.params) await rebuild();
+    if (lastBuildDraft || !lastBuiltPart || lastBuiltPart.features !== store.state.features || lastBuiltPart.params !== store.state.params) await rebuild({ full: true });
     if (!lastBuild?.hasShape) throw new Error('No hay geometría válida para exportar');
     const data = await kernel.request('laserOutline', {});
     if (isSuperseded(data)) return;

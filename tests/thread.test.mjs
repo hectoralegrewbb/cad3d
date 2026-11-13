@@ -4,7 +4,8 @@ import { buildPart } from '../src/kernel/partBuilder.js';
 import { commands } from '../src/core/commands.js';
 import { createPart } from '../src/core/partModel.js';
 import { meshVolume } from '../src/drawing/features3d.js';
-import { threadSpec } from '../src/kernel/threadGeometry.js';
+import { hasRealThread, threadSpec } from '../src/kernel/threadGeometry.js';
+import { withDraftThreads } from '../src/kernel/partBuilder.js';
 
 const rep = await loadKernel();
 const volume = (shape) => meshVolume(shape.mesh({ tolerance: 0.02, angularTolerance: 0.1 }));
@@ -40,6 +41,23 @@ console.log('rosca real ms', Date.now() - t0, 'volumen', Math.round(v0), '→', 
 assert.ok(v1 < v0 - 5 && v1 > v0 * 0.7, 'quita material');
 const [lo, hi] = real.shape.boundingBox.bounds;
 assert.ok(Math.abs(hi[2] - 20) < 0.01 && Math.abs(lo[2]) < 0.01, 'no se sale del cuerpo');
+
+// borrador: con el filete real activo, el modo borrador deja la rosca cosmética (rápido) y el modo completo corta el filete
+{
+  const realPart = commands.updateFeature(part, tid, { real: true });
+  assert.equal(hasRealThread(realPart), true);
+  assert.equal(hasRealThread(part), false);
+  assert.equal(hasRealThread(commands.updateFeature(realPart, tid, { suppressed: true })), false);
+  const t1 = Date.now();
+  const draft = withDraftThreads(true, () => buildPart(rep, realPart));
+  const draftMs = Date.now() - t1;
+  assert.equal(draft.results[tid].status, 'ok');
+  assert.ok(Math.abs(volume(draft.shape) - v0) < 1e-6 * v0 + 1e-3, 'el borrador no corta el filete');
+  assert.ok(draftMs < 800, `el borrador debe ser rápido (${draftMs} ms)`);
+  const full = withDraftThreads(false, () => buildPart(rep, realPart));
+  assert.ok(volume(full.shape) < v0 - 5, 'el modo completo sí corta el filete');
+  assert.equal(globalThis.__elcadDraftThreads, undefined, 'el interruptor se restaura');
+}
 
 // plano: cota del tramo roscado y líneas finas
 {

@@ -1,6 +1,7 @@
 import {describeEntity,exactSection} from './inspection.js';
 import { weldAssembly } from './assemblyWeld.js';
-import { buildPart, hasMeshFeature, withoutSimplify } from './partBuilder.js';
+import { buildPart, hasMeshFeature, withDraftThreads, withoutSimplify } from './partBuilder.js';
+import { hasRealThread } from './threadGeometry.js';
 import { extractMesh } from './meshExtractor.js';
 import { removeBody } from './shapeOps.js';
 import { exportStep, exportStl, exportMeshStl } from './exporters.js';
@@ -140,7 +141,12 @@ export function createKernelService(rep) {
       finally { shape.delete?.(); }
     },
     // Reconstruye la pieza y deja la forma como `current` (la anterior se libera).
-    build({ part, stopBefore = null, split = null }) {
+    // `draftThreads`: omite el filete real (queda la rosca cosmética) para responder rápido mientras se edita.
+    build({ part, stopBefore = null, split = null, draftThreads = false }) {
+      return withDraftThreads(draftThreads, () => methods.buildNow({ part, stopBefore, split, draftThreads }));
+    },
+
+    buildNow({ part, stopBefore = null, split = null, draftThreads = false }) {
       const started = Date.now();
       const build = buildPart(rep, part, { stopBefore });
       disposeCurrent();
@@ -174,6 +180,7 @@ export function createKernelService(rep) {
         size: sizeData?.bounds.size ?? null,
         items,
         notes,
+        draftThreads: draftThreads && hasRealThread(part),
         ms: Date.now() - started,
       };
     },

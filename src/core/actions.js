@@ -5,9 +5,14 @@
 //   → cerrada (`closedHold`) y repite si `loop` = 'loop'. `from` es la posición cerrada y `to` la abierta.
 // kind 'vibrate': oscila sobre un vector (con ángulo de lanzamiento) con amplitud `amp` mm y frecuencia `freq` Hz (canal vibratorio).
 // kind 'air'   : lleva una boquilla al nivel `level` (0–1) en `duration` s (soplador que arranca o se corta).
-// Disparo (`start`): en un instante, después de otra acción, o cuando salieron N partículas.
+// kind 'axis'  : eje de movimiento (Motion): perfil trapezoidal / triangular / curva en S y un programa de comandos (Jog, Homing, MoveAbsolute,
+//   MoveRelative, MoveVelocity, MoveTorque, MoveSuperimposed, GearIn, Phasing, CamIn…). Ver core/motion. `motion.startPos` = posición donde está modelada la pieza.
+// kind 'path'  : trayectoria interpolada (líneas, arcos, hélices, con blending) que mueven los ejes que la tengan como `motion.source`.
+// Disparo (`start`): en un instante, después de otra acción, o cuando salieron N partículas. Los ejes y trayectorias se disparan con `motion.startTime`.
 
-export const actionKinds = { rotate: 'Girar', slide: 'Deslizar', vibrate: 'Vibrar', air: 'Aire (boquilla)' };
+import { defaultMotion, defaultPathMotion, getMotionPlan, validateMotion } from './motion/index.js';
+
+export const actionKinds = { rotate: 'Girar', slide: 'Deslizar', vibrate: 'Vibrar', air: 'Aire (boquilla)', axis: 'Eje de movimiento (Motion)', path: 'Trayectoria interpolada' };
 export const startKinds = { time: 'En el segundo…', after: 'Al terminar otra acción', exited: 'Cuando salieron N partículas',
   zone: 'Cuando hay N partículas en un sensor' };
 export const loopKinds = { once: 'Una vez', loop: 'Repetir', pingpong: 'Ida y vuelta' };
@@ -17,7 +22,8 @@ export const defaultAction = (kind = 'slide', patch = {}) => ({
   name: '',
   kind,
   targets: [],
-  axis: kind === 'rotate' ? 'x' : kind === 'vibrate' ? [0.866, 0, 0.5] : 'z',
+  axis: kind === 'rotate' ? 'x' : kind === 'vibrate' ? [0.866, 0, 0.5] : kind === 'axis' ? (patch.motion?.type === 'rotary' ? 'z' : 'x') : 'z',
+  motion: kind === 'axis' ? defaultMotion(patch.motion?.type ?? 'linear', patch.motion) : kind === 'path' ? defaultPathMotion(patch.motion) : undefined,
   amp: 2,
   freq: 25,
   pivot: [0, 0, 0],
@@ -166,9 +172,61 @@ function sweep(action, t, start) {
   return { u: smooth(phase), du: moving ? (sign * smoothSlope(phase)) / duration : 0 };
 }
 
+const unitOf = (vector) => {
+  const length = Math.hypot(...vector) || 1;
+  return vector.map((v) => v / length);
+};
+
+// Desplazamiento (mm) y velocidad de un eje lineal respecto de su posición modelada, más lo que le aportan los ejes que lo transportan.
+function linearMotion(action, plan, t, depth = 0) {
+  const zero = { offset: [0, 0, 0], vel: [0, 0, 0] };
+  const state = plan?.axisState(action.id, t);
+  if (!state || action.motion?.type === 'rotary' || depth > 8) return zero;
+  const k = unitOf(axisOf(action.axis));
+  const d = state.x - (Number(action.motion.startPos) || 0);
+  return { offset: k.map((v) => v * d), vel: k.map((v) => v * state.v) };
+}
+
+function carriedMotion(action, plan, t, actions, depth = 0) {
+  const total = { offset: [0, 0, 0], vel: [0, 0, 0] };
+  if (depth > 8) return total;
+  (action.motion?.carriedBy ?? []).forEach((id) => {
+    const parent = actions.find((item) => item.id === id && item.kind === 'axis');
+    if (!parent) return;
+    const own = linearMotion(parent, plan, t);
+    const inherited = carriedMotion(parent, plan, t, actions, depth + 1);
+    for (let i = 0; i < 3; i += 1) {
+      total.offset[i] += own.offset[i] + inherited.offset[i];
+      total.vel[i] += own.vel[i] + inherited.vel[i];
+    }
+  });
+  return total;
+}
+
+// Pose de un eje de movimiento: lineal → desplazamiento a lo largo de su dirección; rotativo → giro alrededor de su eje y pivote.
+function applyAxis(body, action, plan, t, actions) {
+  const state = plan?.axisState(action.id, t);
+  if (!state) return;
+  const d = state.x - (Number(action.motion.startPos) || 0);
+  if (action.motion.type === 'rotary') {
+    body.axis = axisOf(action.axis);
+    body.pivot = action.pivot ?? [0, 0, 0];
+    body.angle += (d * Math.PI) / 180;
+    body.omega += (state.v * Math.PI) / 180;
+    return;
+  }
+  const own = linearMotion(action, plan, t);
+  const carried = carriedMotion(action, plan, t, actions);
+  for (let i = 0; i < 3; i += 1) {
+    body.offset[i] += own.offset[i] + carried.offset[i];
+    body.vel[i] += own.vel[i] + carried.vel[i];
+  }
+}
+
 // Cuerpos (grupos de targets) con su pose en el instante t y niveles de aire por boquilla.
 export function evaluateActions(actions, t, ctx = {}) {
   const starts = resolveStarts(actions, ctx);
+  const plan = getMotionPlan(actions);
   const bodies = new Map();
   const nozzles = {};
   const contrib = {}; // acción de giro → { angle, omega } que aporta (los seguidores lo usan)
@@ -181,10 +239,14 @@ export function evaluateActions(actions, t, ctx = {}) {
       if (start !== null && t > start) nozzles[action.nozzle] = u * (Number(action.level) || 0); // la última acción disparada manda
       return;
     }
-    if (!action.targets?.length) return;
+    if (action.kind === 'path' || !action.targets?.length) return;
     const key = bodyKey(action.targets);
     if (!bodies.has(key)) bodies.set(key, { key, targets: [...action.targets], axis: [0, 0, 1], pivot: [0, 0, 0], angle: 0, omega: 0, offset: [0, 0, 0], vel: [0, 0, 0], surf: [0, 0, 0], rotor: null });
     const body = bodies.get(key);
+    if (action.kind === 'axis') {
+      applyAxis(body, action, plan, t, actions);
+      return;
+    }
     if (action.kind === 'rotate') {
       body.axis = axisOf(action.axis);
       body.pivot = action.pivot ?? [0, 0, 0];
@@ -295,8 +357,11 @@ export function evaluateActions(actions, t, ctx = {}) {
 export function validateActions(actions, { targetIds = null, nozzleIds = null, sensorIds = null } = {}) {
   const warnings = [];
   const owners = new Map();
+  getMotionPlan(actions)?.warnings.forEach((text) => warnings.push(text));
   actions.forEach((action) => {
     const label = action.name || action.id;
+    if (action.kind === 'path') return;
+    if (action.kind === 'axis') warnings.push(...validateMotion(action, actions).filter((text) => !text.includes('no tiene nada tildado')));
     if (action.kind === 'air') {
       if (!action.nozzle || (nozzleIds && !nozzleIds.includes(action.nozzle))) warnings.push(`${label}: elegí una boquilla`);
       return;
@@ -318,6 +383,23 @@ export function validateActions(actions, { targetIds = null, nozzleIds = null, s
   });
   return warnings;
 }
+
+// Quita de las demás acciones lo que apuntaba a la acción `id` (maestro, eje transportador, trayectoria).
+export const detachMotionRefs = (actions, id) => actions.map((action) => {
+  if (action.kind !== 'axis') return action;
+  const motion = action.motion;
+  const uses = (motion.carriedBy ?? []).includes(id) || motion.source?.path === id || (motion.program ?? []).some((command) => command.master === id);
+  if (!uses) return action;
+  return {
+    ...action,
+    motion: {
+      ...motion,
+      carriedBy: (motion.carriedBy ?? []).filter((item) => item !== id),
+      source: motion.source?.path === id ? null : motion.source,
+      program: (motion.program ?? []).map((command) => (command.master === id ? { ...command, master: '' } : command)),
+    },
+  };
+});
 
 // Quita referencias a elementos o boquillas borrados.
 export function pruneActions(actions, { targetIds, nozzleIds, sensorIds = null }) {
