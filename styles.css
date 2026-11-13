@@ -108,6 +108,9 @@ table.bom { width:100%; border-collapse:collapse; font-size:11px; } table.bom th
 #scenePanel { left: auto; right: 12px; width: 320px; max-height: calc(100% - 24px); overflow: auto; }
 #scenePanel .field { display: flex; flex-direction: column; gap: 2px; }
 #scenePanel .row-wrap input[type=text] { width: 64px; }
+.motion-cmd { border: 1px solid #2f3a4a; border-radius: 5px; padding: 5px; display: flex; flex-direction: column; gap: 4px; background: #1b222d; }
+.motion-sub { border-left: 2px solid #3b4658; padding-left: 6px; display: flex; flex-direction: column; gap: 4px; }
+.motion-chart { width: 100%; max-width: 320px; background: #141a22; border-radius: 4px; }
 .scene-card { border: 1px solid #3b4658; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
 .scene-head { justify-content: space-between; }
 .scene-head b { flex: 1; font-size: 12px; }

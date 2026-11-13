@@ -1,4 +1,4 @@
-import { defaultAction, pruneActions } from './actions.js';
+import { defaultAction, detachMotionRefs, pruneActions } from './actions.js';
 
 // Escena = { actions, nozzles }. Reductores puros: sirven igual para una pieza (state.actions) y para el proyecto (conjunto).
 export const defaultNozzle = (patch = {}) => ({
@@ -37,7 +37,7 @@ export const sceneOps = {
   updateAction: (scene, id, patch) => ({ ...scene, actions: scene.actions.map((action) => (action.id === id ? { ...action, ...patch } : action)) }),
   removeAction: (scene, id) => ({
     ...scene,
-    actions: scene.actions.filter((action) => action.id !== id).map((action) => (action.start?.action === id ? { ...action, start: { ...action.start, type: 'time', action: null } } : action)),
+    actions: detachMotionRefs(scene.actions.filter((action) => action.id !== id), id).map((action) => (action.start?.action === id ? { ...action, start: { ...action.start, type: 'time', action: null } } : action)),
   }),
   moveAction(scene, id, delta) {
     const index = scene.actions.findIndex((action) => action.id === id);

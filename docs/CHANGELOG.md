@@ -1,3 +1,11 @@
+## 0.4.0 — 2026-11-12 — Control de movimiento y corrección de cuelgue con roscas
+
+- Corrección: la app se colgaba al extruir o colocar una rosca con «Filete real». El filete helicoidal (barrido + booleana) se recalculaba en el worker del kernel en cada edición y no se podía cancelar. Ahora cada edición se reconstruye con un filete cosmético (instantáneo) y, tras 900 ms sin tocar nada, se calcula el filete real; si llega una edición mientras ese cálculo lleva más de 1,2 s, se reinicia el kernel. Exportar STL/3MF/STEP/DXF fuerza el filete real. (No se logró reproducir un cuelgue infinito fuera del navegador: la corrección ataca la causa identificada.)
+- Nuevo `core/motion/` (simulación de ejes): perfiles trapezoidal, triangular y curva en S (jerk limitado); Jog, Homing (final de carrera + marca, solo flanco, tope por par, directo), MoveAbsolute, MoveRelative, MoveVelocity, MoveTorque (inercia, fricción, tope elástico), MoveSuperimposed, Stop y Wait; GearIn (velocidad o posición), GearOut, Phasing, CamIn (subida/reposo/bajada, sincronizada con la línea, tabla), Registro con marca (TouchProbe) y Bobinador/Desbobinador; trayectorias interpoladas 2D/3D con líneas, arcos, hélices, espirales y blending (velocidad limitada por curvatura).
+- Acciones nuevas «Eje de movimiento» y «Trayectoria interpolada» (panel ⚡ Acciones): programa de comandos editable, gráfico de posición/velocidad/aceleración/fuerza y avisos. Un eje lineal puede ser transportado por otros (`carriedBy`: el Z de un pórtico viaja con el X) y seguir una componente de una trayectoria.
+- Plantillas en la biblioteca («Control de movimiento»): Cizalla volante, Cuchilla rotativa (leva electrónica), Registro con marca, Bobinador, Mesa indexadora y Pick & Place.
+- Pruebas: `motionControl.test.mjs` (perfiles, ejes, transporte, rotativo, GearIn, trayectoria y plantillas) y bloque de rosca en `thread.test.mjs`.
+
 ## 0.3.1 — 2026-11-08 — Cadenas ASA/ANSI y DXF para láser
 
 - Ruedas de cadena: serie A rotulada «ASA n / ANSI n» (ASA 40 = ANSI 40, paso 1/2"). Geometría ANSI B29.1: asiento Ø = 1,005·Ø rodillo + 0,076 mm y ancho de diente (0,93 | 0,95)·b1 − 0,15 mm; la serie B (ISO 606) no cambia. Las claves internas (`A40`…) se conservan.

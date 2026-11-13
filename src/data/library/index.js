@@ -8,7 +8,8 @@ import { fluidItems } from './fluids.js';
 import { machineItems } from './machines.js';
 import { electricalItems } from './electrical.js';
 import { mechanismItems } from './mechanisms.js';
+import { motionItems } from './motion.js';
 
-export const libraryItems = [...fasteners, ...bearingItems, ...transmissionItems, ...structureItems, ...hopperItems, ...fluidItems, ...machineItems, ...electricalItems, ...mechanismItems];
+export const libraryItems = [...fasteners, ...bearingItems, ...transmissionItems, ...structureItems, ...hopperItems, ...fluidItems, ...machineItems, ...electricalItems, ...mechanismItems, ...motionItems];
 
 export const libraryCategories = [...new Set(libraryItems.map((entry) => entry.category))];

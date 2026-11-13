@@ -31,6 +31,8 @@ Las restricciones de boceto son dirigidas: A es referencia y B se ajusta. Las re
 |---|---|---|
 | `core/inspection.js` | meshAudit, meshSection, sectionContours, sectionDxf | IO worker, kernel, UI |
 | `core/alignment.js` | alignedPlacement | app |
+| `core/motion/*` | buildMotionPlan, getMotionPlan, perfiles, comandos, leva, trayectoria | core/actions, ui/motionPanel, biblioteca |
+| `ui/motionPanel.js` | axisBody, pathBody | ui/scenePanel |
 | `kernel/inspection.js` | describeEntity, exactSection | kernelService |
 | `ui/cadTools.js` | createCadTools | workbench |
 | `particles/meshCollider.js` | MeshCollider | ParticleSim |

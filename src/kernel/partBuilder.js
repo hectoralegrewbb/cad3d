@@ -555,8 +555,20 @@ function buildThread(rep, solid, feature, params, cosmeticOnly = false) {
   if (!solid) throw new Error('No hay material donde roscar');
   const spec = threadSpec(feature, params);
   const chamfered = spec.chamferStart > 0 || spec.chamferEnd > 0 ? chamferThread(rep, solid, spec) : solid;
-  if (!feature.real || cosmeticOnly) return chamfered;
+  if (!feature.real || cosmeticOnly || globalThis.__elcadDraftThreads) return chamfered;
   return cutThread(rep, chamfered, spec, Boolean(feature.lefthand));
+}
+
+// Borrador: mientras la persona edita, el filete real (segundos por reconstrucción) se omite y queda la rosca cosmética;
+// el filete se corta recién cuando la edición se asienta. Interruptor global del hilo del motor, como `withoutSimplify`.
+export function withDraftThreads(active, run) {
+  const previous = globalThis.__elcadDraftThreads;
+  globalThis.__elcadDraftThreads = Boolean(active);
+  try {
+    return run();
+  } finally {
+    globalThis.__elcadDraftThreads = previous;
+  }
 }
 
 // Selección de aristas para filete / chaflán. Las selecciones del visor ("near") se guardan como puntos

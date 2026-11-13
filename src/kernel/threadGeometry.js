@@ -124,6 +124,9 @@ export function cutThread(rep, solid, spec, lefthand = false) {
   return result;
 }
 
+// ¿La pieza tiene filete real activo? (esas reconstrucciones cuestan segundos: la app las difiere mientras se edita)
+export const hasRealThread = (part) => Boolean(part?.features?.some((feature) => feature.type === 'thread' && feature.real && !feature.suppressed));
+
 // Roscas de la pieza (no suprimidas y válidas) para el plano.
 export function threadFeatureSpecs(part, params) {
   const specs = [];
