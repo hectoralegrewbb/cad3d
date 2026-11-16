@@ -693,6 +693,7 @@ export class Viewer {
     this.clearGroup(this.sensorGroup);
     this.sensorBoxes = new Map();
     (list ?? []).forEach((sensor) => {
+      if (sensor.kind === 'presion') return this.addPressureMarker(sensor);
       const size = sensor.size.map((value) => Math.max(0.5, Math.abs(Number(value))));
       const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(...size)), new THREE.LineBasicMaterial({ color: 0x59d98e, transparent: true, opacity: 0.6, depthTest: false }));
       box.position.set(...sensor.center.map(Number));
@@ -701,6 +702,25 @@ export class Viewer {
       this.sensorBoxes.set(sensor.id, box);
     });
     this.render();
+  }
+
+  // Sensor de presión: una marca celeste en cada toma (y una línea entre las dos si es diferencial).
+  addPressureMarker(sensor) {
+    const extent = this.bounds ? Math.max(...this.bounds.size) : 100;
+    const taps = [sensor.center, ...(sensor.mode === 'diferencial' ? [sensor.ref ?? [0, 0, 0]] : [])].map((tap) => new THREE.Vector3(...tap.map(Number)));
+    const material = () => new THREE.MeshBasicMaterial({ color: 0x4fc3f7, depthTest: false, transparent: true, opacity: 0.95 });
+    taps.forEach((tap, index) => {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(Math.max(1.5, extent / 140), 14, 10), material());
+      dot.position.copy(tap);
+      dot.renderOrder = 997;
+      if (index === 1) dot.material.color.set(0xffb74d); // toma (−)
+      this.sensorGroup.add(dot);
+    });
+    if (taps.length === 2) {
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(taps), new THREE.LineBasicMaterial({ color: 0x4fc3f7, depthTest: false, transparent: true, opacity: 0.7 }));
+      line.renderOrder = 996;
+      this.sensorGroup.add(line);
+    }
   }
 
   setSensorCounts(counts) {

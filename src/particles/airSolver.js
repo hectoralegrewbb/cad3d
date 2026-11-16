@@ -1328,6 +1328,19 @@ export class AirSolver {
     return { axis, coord: this.origin[axis] + (along + 0.5) * this.hmm, nx: w, ny: h, lo, size: [dims[a] * this.hmm, dims[b] * this.hmm], pressure, speed, mask, pMax, sMax };
   }
 
+  // Muestra puntual para un instrumento (toma de presión): la celda que contiene el punto, sin interpolar con las vecinas
+  // (las paredes son membranas: interpolar mezclaría el aire de adentro del conducto con el de afuera). null = no toca aire.
+  probe(x, y, z) {
+    const [nx, ny, nz] = this.dims;
+    const i = Math.floor((x - this.origin[0]) / this.hmm);
+    const j = Math.floor((y - this.origin[1]) / this.hmm);
+    const k = Math.floor((z - this.origin[2]) / this.hmm);
+    if (i < 0 || j < 0 || k < 0 || i >= nx || j >= ny || k >= nz) return null;
+    const c = i + nx * (j + ny * k);
+    if (!this.active[c] && !this.pfix[c]) return null;
+    return { pressure: this.p[c], speed: Math.hypot(this.uc[c], this.vc[c], this.wc[c]) };
+  }
+
   pressureAt(x, y, z) {
     return this.sampleCells(this.p, x, y, z, 0);
   }

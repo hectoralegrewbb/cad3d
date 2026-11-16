@@ -4,6 +4,7 @@ import { sampleSdf } from './sdf.js';
 import { evaluateActions } from '../core/actions.js';
 import { AirGrid } from './airflow.js';
 import { AirSolver } from './airSolver.js';
+import { lagFactor, measurePressure, pressureCrossed, pressureKey } from '../core/pressureSensor.js';
 import { relaxation, terminalVelocity } from './drag.js';
 import { createRotor, stepRotor } from './rotor.js';
 import { RigidWorld, quatFromYaw } from './rigid.js';
@@ -78,6 +79,11 @@ export class ParticleSim {
     this.zoneReached = new Map(); // `${sensor}:${n}` → instante en que se alcanzó
     this.zoneLast = new Map(); // `${sensor}:${n}` → último flanco ascendente (para los disparos que se rearman)
     this.zoneAbove = new Map();
+    this.probeReadings = {}; // lecturas de los sensores de presión (tomas puntuales)
+    this.probeState = new Map(); // id → { value, time }: estado del filtro de respuesta de cada transmisor
+    this.pressureReached = new Map(); // presostatos: `${sensor}:${op}:${valor}` → instante en que se cumplió
+    this.pressureLast = new Map();
+    this.pressureAbove = new Map();
     this.cap = this.s.cap;
     this.max = this.s.maxCap;
     this.airVel = new Float32Array(this.max * 3);
@@ -324,13 +330,47 @@ export class ParticleSim {
     if (!this.solverMode) return;
     const readings = {};
     this.sensors.forEach((sensor) => {
+      if (sensor.kind === 'presion') return;
       const center = sensor.min.map((v, k) => (v + sensor.max[k]) / 2);
       const size = sensor.min.map((v, k) => sensor.max[k] - v);
       const r = this.air.readBox(center, size);
       readings[sensor.id] = { pressure: r.pressure, speed: r.speed, flow: r.flow * 3600 };
     });
-    this.airReadings = readings;
+    this.airReadings = { ...readings, ...this.probeReadings };
     this.monitorInlets();
+  }
+
+  // Sensores de presión: muestrea cada toma en cada cuadro de aire, aplica el tiempo de respuesta del transmisor
+  // y registra los umbrales (presostatos) que usan las acciones.
+  readPressureSensors() {
+    if (!this.solverMode || !this.airSettled) return;
+    const air = this.air;
+    const readings = {};
+    this.sensors.forEach((sensor) => {
+      if (sensor.kind !== 'presion') return;
+      const raw = measurePressure(sensor.mode, air.probe(...sensor.pos), sensor.mode === 'diferencial' ? air.probe(...sensor.ref) : null, air.rho);
+      if (!raw.valid) {
+        this.probeState.delete(sensor.id);
+        readings[sensor.id] = { kind: 'presion', valid: false, pressure: null, speed: null };
+        return;
+      }
+      const state = this.probeState.get(sensor.id) ?? { value: raw.value, time: this.time };
+      state.value += (raw.value - state.value) * lagFactor(this.time - state.time, sensor.tau);
+      state.time = this.time;
+      this.probeState.set(sensor.id, state);
+      readings[sensor.id] = { kind: 'presion', valid: true, pressure: state.value, raw: raw.value, staticPa: raw.staticPa, dynamicPa: raw.dynamicPa, totalPa: raw.totalPa, speed: raw.speed };
+    });
+    this.probeReadings = readings;
+    this.airReadings = { ...this.airReadings, ...readings };
+    this.actions.forEach((action) => {
+      const start = action.start;
+      if (start?.type !== 'pressure' || !start.sensor) return;
+      const key = pressureKey(start.sensor, start.op, start.value);
+      const reached = pressureCrossed(readings[start.sensor]?.pressure, start.op, Number(start.value) || 0);
+      if (!this.pressureReached.has(key) && reached) this.pressureReached.set(key, this.time);
+      if (reached && !this.pressureAbove.get(key)) this.pressureLast.set(key, this.time); // flanco: se rearma al dejar de cumplirse
+      this.pressureAbove.set(key, reached);
+    });
   }
 
   // Detector de taponamiento: cada soplador (caudal o presión impuesta) se compara con su estado limpio, medido al asentarse el aire
@@ -431,6 +471,7 @@ export class ParticleSim {
         return;
       }
     }
+    this.readPressureSensors();
     if (this.airFrame % 15 === 0) this.readSensorsAir();
     const out = [0, 0, 0];
     const { x, airVel, count } = this;
@@ -524,7 +565,7 @@ export class ParticleSim {
 
   // Pone a cada cuerpo en su pose del instante t y fija los niveles de aire.
   applyScene(t) {
-    const poses = evaluateActions(this.actions, t, { exitTime: (n) => this.exitTimes[n - 1] ?? null, zoneTime: (sensor, n, rearm) => (rearm ? this.zoneLast : this.zoneReached).get(`${sensor}:${n}`) ?? null });
+    const poses = evaluateActions(this.actions, t, { exitTime: (n) => this.exitTimes[n - 1] ?? null, zoneTime: (sensor, n, rearm) => (rearm ? this.zoneLast : this.zoneReached).get(`${sensor}:${n}`) ?? null, pressureTime: (sensor, op, value, rearm) => (rearm ? this.pressureLast : this.pressureReached).get(pressureKey(sensor, op, value)) ?? null });
     const byKey = new Map(poses.bodies.map((pose) => [pose.key, pose]));
     this.bodies.forEach((body) => {
       const pose = body.key ? byKey.get(body.key) : null;
@@ -1745,6 +1786,7 @@ export class ParticleSim {
     const counts = {};
     const { x, count } = this;
     this.sensors.forEach((sensor) => {
+      if (sensor.kind === 'presion') return; // toma de presión: no cuenta partículas
       let inside = 0;
       const { min, max } = sensor;
       for (let i = 0; i < count; i += 1) {
@@ -1808,6 +1850,9 @@ export class ParticleSim {
     this.rigid.clear();
     this.zoneLast.clear();
     this.zoneAbove.clear();
+    this.pressureLast.clear();
+    this.pressureAbove.clear();
+    this.probeState.clear();
     this.productsExited = 0;
     this.feeders.forEach((feeder) => { feeder.timer = feeder.start ?? 0; feeder.spawned = 0; });
     this.bodies.forEach((body) => { body.torqueAcc = 0; });

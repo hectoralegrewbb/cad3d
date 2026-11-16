@@ -1,4 +1,5 @@
 import { defaultAction, detachMotionRefs, pruneActions } from './actions.js';
+import { defaultPressureSensor, isPressureSensor } from './pressureSensor.js';
 
 // Escena = { actions, nozzles }. Reductores puros: sirven igual para una pieza (state.actions) y para el proyecto (conjunto).
 export const defaultNozzle = (patch = {}) => ({
@@ -59,7 +60,8 @@ export const sceneOps = {
   }),
   addSensor(scene, patch = {}) {
     const id = nextId(scene.sensors ?? [], 's');
-    return { scene: { ...scene, sensors: [...(scene.sensors ?? []), defaultSensor({ id, name: `Sensor ${id.slice(1)}`, ...patch })] }, id };
+    const sensor = isPressureSensor(patch) ? defaultPressureSensor({ id, name: `Presión ${id.slice(1)}`, ...patch }) : defaultSensor({ id, name: `Sensor ${id.slice(1)}`, ...patch });
+    return { scene: { ...scene, sensors: [...(scene.sensors ?? []), sensor] }, id };
   },
   updateSensor: (scene, id, patch) => ({ ...scene, sensors: (scene.sensors ?? []).map((sensor) => (sensor.id === id ? { ...sensor, ...patch } : sensor)) }),
   removeSensor: (scene, id) => ({
@@ -97,8 +99,16 @@ export function simNozzles(scene) {
   });
 }
 
-// Sensores listos para el simulador (caja alineada a los ejes).
-export const simSensors = (scene) => (scene.sensors ?? []).map((sensor) => ({
+// Sensores listos para el simulador: caja alineada a los ejes (zona) o tomas puntuales (presión).
+const point = (values) => [0, 1, 2].map((k) => Number(values?.[k]) || 0);
+export const simSensors = (scene) => (scene.sensors ?? []).map((sensor) => (isPressureSensor(sensor) ? {
+  id: sensor.id,
+  kind: 'presion',
+  pos: point(sensor.center),
+  ref: point(sensor.ref),
+  mode: sensor.mode ?? 'estatica',
+  tau: Math.max(0, Number(sensor.tau) || 0),
+} : {
   id: sensor.id,
   min: sensor.center.map((value, k) => Number(value) - Math.abs(Number(sensor.size[k])) / 2),
   max: sensor.center.map((value, k) => Number(value) + Math.abs(Number(sensor.size[k])) / 2),

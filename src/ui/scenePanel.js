@@ -1,5 +1,6 @@
 import { actionKinds, loopKinds, startKinds, validateActions, linkRatio, linkTypes } from '../core/actions.js';
 import { sceneOps } from '../core/scene.js';
+import { formatPressure, fromUnit, isPressureSensor, pressureModes, pressureOps, pressureUnits, toUnit } from '../core/pressureSensor.js';
 import { button, checkInput, el, field, selectInput, textInput } from './dom.js';
 import { axisBody, pathBody } from './motionPanel.js';
 
@@ -247,9 +248,10 @@ export class ScenePanel {
       action.start.type === 'time' ? this.num('Segundo', action.start.t, (value) => setStart({ t: Math.max(0, value) }), 's') : null,
       action.start.type === 'after' ? field('Después de', selectInput(others.map((item) => [item.id, item.name || item.id]), action.start.action ?? '', (value) => setStart({ action: value }))) : null,
       action.start.type === 'exited' ? this.num('Partículas salidas', action.start.n, (value) => setStart({ n: Math.max(1, Math.round(value)) })) : null,
-      action.start.type === 'zone' ? field('Sensor', selectInput([['', '— elegí —'], ...(scene.sensors ?? []).map((sensor) => [sensor.id, sensor.name || sensor.id])], action.start.sensor ?? '', (value) => setStart({ sensor: value || null }))) : null,
+      action.start.type === 'zone' ? field('Sensor', selectInput([['', '— elegí —'], ...(scene.sensors ?? []).filter((sensor) => !isPressureSensor(sensor)).map((sensor) => [sensor.id, sensor.name || sensor.id])], action.start.sensor ?? '', (value) => setStart({ sensor: value || null }))) : null,
       action.start.type === 'zone' ? this.num('Partículas adentro (o más)', action.start.n, (value) => setStart({ n: Math.max(1, Math.round(value)) })) : null,
       action.start.type === 'zone' ? checkInput(!!action.start.rearm, (on) => setStart({ rearm: on }), 'Repetir cada vez que el sensor vuelva a cumplirlo') : null,
+      ...(action.start.type === 'pressure' ? this.pressureTrigger(action, scene, setStart) : []),
       action.start.type !== 'time' ? this.num('Demora', action.start.delay ?? 0, (value) => setStart({ delay: Math.max(0, value) }), 's') : null,
     );
     return el('div', { class: 'scene-card' }, head, ...body.filter(Boolean), index < 0 ? null : null);
@@ -262,7 +264,75 @@ export class ScenePanel {
     });
   }
 
+  // Disparo por presión (presostato): sensor, sentido y umbral en la unidad del sensor (se guarda en Pa).
+  pressureTrigger(action, scene, setStart) {
+    const gauges = (scene.sensors ?? []).filter(isPressureSensor);
+    const unit = gauges.find((sensor) => sensor.id === action.start.sensor)?.unit ?? 'Pa';
+    return [
+      field('Sensor de presión', selectInput([['', '— elegí —'], ...gauges.map((sensor) => [sensor.id, sensor.name || sensor.id])], action.start.sensor ?? '', (value) => setStart({ sensor: value || null }))),
+      field('Dispara cuando la presión', selectInput(Object.entries(pressureOps), action.start.op ?? '>=', (value) => setStart({ op: value }))),
+      this.num('Valor', round2(toUnit(Number(action.start.value) || 0, unit)), (value) => setStart({ value: fromUnit(value, unit) }), unit),
+      checkInput(!!action.start.rearm, (on) => setStart({ rearm: on }), 'Repetir cada vez que vuelva a cumplirse'),
+      el('p', { class: 'muted', text: 'Funciona como un presostato: p. ej. cortar el soplador o abrir una compuerta cuando la línea se tapona y la presión sube. Necesita el aire «calculado» (boquilla con Caudal o Presión).' }),
+    ];
+  }
+
+  // Lecturas del aire por sensor (cada cuadro): actualiza el valor que muestran los sensores de presión.
+  setSensorReadings(readings) {
+    this.sensorReadings = readings ?? {};
+    this.root.querySelectorAll('[data-sensor-pressure]').forEach((node) => {
+      node.textContent = this.pressureText(node.dataset.sensorPressure, node.dataset.unit);
+    });
+    this.root.querySelectorAll('[data-sensor-detail]').forEach((node) => {
+      node.textContent = this.pressureDetail(node.dataset.sensorDetail, node.dataset.unit);
+    });
+  }
+
+  pressureText(id, unit) {
+    const reading = this.sensorReadings?.[id];
+    if (!reading) return '—';
+    return reading.valid ? formatPressure(reading.pressure, unit) : 'sin aire';
+  }
+
+  pressureDetail(id, unit) {
+    const reading = this.sensorReadings?.[id];
+    if (!reading) return 'Sin lectura: iniciá la simulación con el aire «calculado» (una boquilla con entrada «Caudal de soplador» o «Presión»).';
+    if (!reading.valid) return 'La toma no toca aire: está dentro de una pared o fuera de la zona calculada. Movela al interior del conducto.';
+    const speed = `${reading.speed.toFixed(1).replace('.', ',')} m/s`;
+    return `Estática ${formatPressure(reading.staticPa, unit)} · dinámica ${formatPressure(reading.dynamicPa, unit)} · total ${formatPressure(reading.totalPa, unit)} · velocidad del aire ${speed}`;
+  }
+
+  // Sensor de presión: una toma puntual (o dos, en diferencial) que se lee como un transmisor real.
+  pressureCard(sensor) {
+    const set = (patch) => this.apply((s) => sceneOps.updateSensor(s, sensor.id, patch));
+    const open = this.openId === sensor.id;
+    const unit = sensor.unit ?? 'Pa';
+    const differential = sensor.mode === 'diferencial';
+    // Al apuntar sobre el modelo el clic cae en la cara de afuera de la pared: la toma se mete hacia adentro por la normal.
+    const inward = (hit) => hit.point.map((value, k) => round1(value - (hit.normal?.[k] ?? 0) * (Number(sensor.depth) || 0)));
+    const head = el('div', { class: 'row-wrap scene-head' },
+      button(open ? '▾' : '▸', () => { this.openId = open ? null : sensor.id; this.render(); }),
+      el('b', { text: `${sensor.name || sensor.id} · presión` }),
+      el('span', { class: 'readout', 'data-sensor-pressure': sensor.id, 'data-unit': unit, text: this.pressureText(sensor.id, unit) }),
+      button('✕', () => this.apply((s) => sceneOps.removeSensor(s, sensor.id)), { danger: true, title: 'Borrar sensor' }));
+    if (!open) return el('div', { class: 'scene-card' }, head);
+    return el('div', { class: 'scene-card' }, head,
+      field('Nombre', textInput(sensor.name, (value) => set({ name: value }))),
+      field('Qué mide', selectInput(Object.entries(pressureModes), sensor.mode ?? 'estatica', (value) => set({ mode: value }))),
+      field('Unidad', selectInput(Object.keys(pressureUnits).map((key) => [key, key === 'mmca' ? 'mmca (mm de columna de agua)' : key]), unit, (value) => set({ unit: value }))),
+      this.num('Profundidad de la toma al apuntar', sensor.depth ?? 0, (value) => set({ depth: Math.max(0, value) }), 'mm'),
+      this.placeButton(differential ? '📍 Apuntar la toma (+)' : '📍 Apuntar la toma en el modelo', (hit) => set({ center: inward(hit) })),
+      this.triple(differential ? 'Posición de la toma (+)' : 'Posición de la toma', sensor.center, (value) => set({ center: value })),
+      differential ? this.placeButton('📍 Apuntar la toma (−)', (hit) => set({ ref: inward(hit) })) : null,
+      differential ? this.triple('Posición de la toma (−)', sensor.ref ?? [0, 0, 0], (value) => set({ ref: value })) : null,
+      this.num('Tiempo de respuesta', sensor.tau ?? 0.2, (value) => set({ tau: Math.max(0, value) }), 's'),
+      el('p', { class: 'readout', 'data-sensor-detail': sensor.id, 'data-unit': unit, text: this.pressureDetail(sensor.id, unit) }),
+      el('p', { class: 'muted', text: 'Presión manométrica: 0 = atmósfera (los extremos abiertos). La toma tiene que quedar DENTRO del conducto: al apuntar sobre el modelo el punto cae en la cara de afuera, así que cargá en «Profundidad» el espesor de pared más unos milímetros, o corregí la posición a mano. «Diferencial» da la pérdida de carga entre dos tomas (p. ej. antes y después del venturi); «Total» suma la presión dinámica ½·ρ·v², como un Pitot. El tiempo de respuesta amortigua la lectura igual que un transmisor real (0 = instantáneo). La lectura se grafica y se exporta en CSV desde «Partículas», y sirve de disparo tipo presostato en las acciones. Es un modelo: el valor depende de la calidad del campo de aire y conviene contrastarlo con una medición.' }),
+    );
+  }
+
   sensorCard(sensor) {
+    if (isPressureSensor(sensor)) return this.pressureCard(sensor);
     const set = (patch) => this.apply((s) => sceneOps.updateSensor(s, sensor.id, patch));
     const open = this.openId === sensor.id;
     const head = el('div', { class: 'row-wrap scene-head' },
@@ -361,13 +431,17 @@ export class ScenePanel {
         this.openId = made.id;
         this.apply(() => made.scene);
       })),
-      el('b', { text: 'Sensores de zona' }),
+      el('b', { text: 'Sensores (zona y presión)' }),
       ...(scene.sensors ?? []).map((sensor) => this.sensorCard(sensor)),
       el('div', { class: 'row-wrap' }, button('+ Sensor', () => {
         const made = sceneOps.addSensor(this.hooks.getScene(), this.hooks.sensorDefaults?.() ?? {});
         this.openId = made.id;
         this.apply(() => made.scene);
-      })),
+      }), button('+ Sensor de presión', () => {
+        const made = sceneOps.addSensor(this.hooks.getScene(), { kind: 'presion', center: (this.hooks.sensorDefaults?.().center ?? [0, 0, 0]).map(round1) });
+        this.openId = made.id;
+        this.apply(() => made.scene);
+      }, { title: 'Toma de presión puntual: estática, total (Pitot) o diferencial. Requiere el aire calculado' })),
       el('b', { text: 'Productos (cajas)' }),
       ...(scene.feeders ?? []).map((feeder) => this.feederCard(feeder)),
       el('div', { class: 'row-wrap' }, button('+ Producto', () => {

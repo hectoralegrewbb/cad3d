@@ -29,7 +29,7 @@ export class RunRecorder {
     Object.entries(frame.air?.readings ?? {}).forEach(([id, r]) => {
       row[`p:${id}`] = r.pressure;
       row[`v:${id}`] = r.speed;
-      row[`q:${id}`] = r.flow;
+      if (Number.isFinite(r.flow)) row[`q:${id}`] = r.flow; // las tomas de presión no miden caudal
     });
     (frame.air?.plug ?? []).forEach((mon) => { row[`plug:${mon.id}`] = mon.ratio; });
     Object.entries(frame.sensorCounts ?? {}).forEach(([id, n]) => { row[`zone:${id}`] = n; });

@@ -594,6 +594,7 @@ const particleRunner = new ParticleRunner({
     applyPoses(frame.poses, frame.nozzleLevels);
     scenePanel.setClock(frame.time);
     scenePanel.setSensorCounts(frame.sensorCounts);
+    scenePanel.setSensorReadings(frame.air?.readings);
     viewer.setSensorCounts(frame.sensorCounts);
     if (frame.tracers) viewer.setTracers(frame.tracers);
     viewer.setProducts(frame.products);
@@ -625,7 +626,7 @@ const particlePanel = new ParticlePanel(byId('particlePanel'), {
     else store.apply(state=>commands.updateSimulation(state,validated));
     scheduleJournal();scheduleSave();return sceneDoc().simulation;
   },
-  getInfo: () => ({ actions: getScene().actions.length, nozzles: getScene().nozzles.length, feeders: (getScene().feeders ?? []).length, sensors: (getScene().sensors ?? []).map((sensor) => ({ id: sensor.id, name: sensor.name })), hasScrew: scope === 'part' && screwSpecs().length > 0, targets: (viewer.items??[]).map(item=>({id:item.id,name:item.name||item.id})) }),
+  getInfo: () => ({ actions: getScene().actions.length, nozzles: getScene().nozzles.length, feeders: (getScene().feeders ?? []).length, sensors: (getScene().sensors ?? []).map((sensor) => ({ id: sensor.id, name: sensor.name, kind: sensor.kind ?? 'zona', unit: sensor.unit ?? 'Pa', mode: sensor.mode })), hasScrew: scope === 'part' && screwSpecs().length > 0, targets: (viewer.items??[]).map(item=>({id:item.id,name:item.name||item.id})) }),
   onEmitter: (center, size) => viewer.showEmitter(center, size),
   onSlice: (request) => {
     particleRunner.setSlice(request);

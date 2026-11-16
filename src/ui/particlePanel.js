@@ -1,3 +1,4 @@
+import { formatPressure } from '../core/pressureSensor.js';
 import { particleConfig } from '../core/particleConfig.js';
 import { downloadBlob } from '../io/persistence.js';
 import { materialPresets } from '../particles/sim.js';
@@ -12,6 +13,13 @@ const toNumber = (value, fallback) => {
   const n = Number(String(value).replace(',', '.'));
   return Number.isFinite(n) ? n : fallback;
 };
+
+// Línea de estado de un sensor de presión, en su unidad.
+const pressureModeNames = { estatica: 'estática', total: 'total', diferencial: 'diferencial' };
+function pressureLine(name, reading, sensor) {
+  if (!reading.valid) return `${name}: la toma no toca aire (movela dentro del conducto)`;
+  return `${name}: ${formatPressure(reading.pressure, sensor?.unit)} (${pressureModeNames[sensor?.mode] ?? 'estática'}) · v = ${reading.speed.toFixed(1).replace('.', ',')} m/s`;
+}
 
 export class ParticlePanel {
   constructor(root, hooks) {
@@ -161,8 +169,9 @@ Volumen suelto equivalente ${fmt(fill.remainingLiters)} L · cavidad estimada ${
     const lines = [...rotors];
     if (!air.ready) lines.push(`Calculando el aire… ${Math.round(air.progress * 100)} % (${fmt(air.cellMm, 1)} mm por celda, ${fmt(air.stepMs)} ms por paso). Los granos empiezan a caer cuando termina.`);
     else lines.push(`Aire: ${Math.round(air.cells / 1000)}k celdas de ${fmt(air.cellMm, 1)} mm · entra ${fmt(air.inletFlow)} m³/h · ${fmt(air.stepMs)} ms por paso`);
-    const names = Object.fromEntries((this.hooks.getInfo().sensors ?? []).map((sensor) => [sensor.id, sensor.name || sensor.id]));
-    Object.entries(air.readings ?? {}).forEach(([id, r]) => lines.push(`${names[id] ?? id}: p = ${fmt(r.pressure)} Pa · v = ${fmt(r.speed, 1)} m/s · Q = ${fmt(Math.abs(r.flow))} m³/h`));
+    const sensors = Object.fromEntries((this.hooks.getInfo().sensors ?? []).map((sensor) => [sensor.id, sensor]));
+    const names = Object.fromEntries(Object.values(sensors).map((sensor) => [sensor.id, sensor.name || sensor.id]));
+    Object.entries(air.readings ?? {}).forEach(([id, r]) => lines.push(r.kind === 'presion' ? pressureLine(names[id] ?? id, r, sensors[id]) :`${names[id] ?? id}: p = ${fmt(r.pressure)} Pa · v = ${fmt(r.speed, 1)} m/s · Q = ${fmt(Math.abs(r.flow))} m³/h`));
     (air.plug ?? []).forEach((mon) => {
       if (mon.state === 'normal') return;
       const how = mon.bc === 'caudal' ? `la presión de entrada subió ×${fmt(mon.ratio, 1)} sobre la línea limpia` : `el caudal cayó a ${fmt(100 / mon.ratio)} % del de la línea limpia`;

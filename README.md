@@ -117,6 +117,7 @@ Vista auxiliar para agujeros inclinados fuera de las vistas ortogonales (hoy se 
 
 ## Sensores, flujo de aire, líquidos y colocación con clic
 
+- **Sensores de presión** (⚡ → + Sensor de presión): toma puntual estática, total (Pitot) o diferencial, en Pa/mbar/kPa/mmca, con tiempo de respuesta; se grafica, se exporta y dispara acciones como un presostato.
 - **Sensores de zona** (⚡ → + Sensor): caja que cuenta partículas; una acción puede arrancar cuando entran N (disparador «zona»), p. ej. abrir una compuerta al llenarse un vaso.
 - **Aire**: grilla Euler gruesa (12k/20k/40k celdas según «Calidad de aire») con chorros de boquilla, viento, proyección de presión y advección. Rodea obstáculos y se desvía con piezas móviles (se revoxeliza solo cuando la pieza cambia de pose). Acoplamiento de una vía (el aire empuja las partículas, no al revés). Las trazadoras celestes muestran el flujo real. Es cualitativo, no CFD.
 - **Líquidos** (agua, aceite/jarabe): PBF en CPU con densidad de pared, viscosidad XSPH y tensión superficial. Con ~700 partículas llena recipientes en capas; el tope se adapta solo al costo por paso.

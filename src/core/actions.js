@@ -14,7 +14,7 @@ import { defaultMotion, defaultPathMotion, getMotionPlan, validateMotion } from 
 
 export const actionKinds = { rotate: 'Girar', slide: 'Deslizar', vibrate: 'Vibrar', air: 'Aire (boquilla)', axis: 'Eje de movimiento (Motion)', path: 'Trayectoria interpolada' };
 export const startKinds = { time: 'En el segundo…', after: 'Al terminar otra acción', exited: 'Cuando salieron N partículas',
-  zone: 'Cuando hay N partículas en un sensor' };
+  zone: 'Cuando hay N partículas en un sensor', pressure: 'Cuando la presión de un sensor llega a un valor (presostato)' };
 export const loopKinds = { once: 'Una vez', loop: 'Repetir', pingpong: 'Ida y vuelta' };
 export const axisVectors = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 
@@ -118,6 +118,9 @@ export function resolveStarts(actions, ctx = {}) {
       value = at == null ? null : at + (Number(start.delay) || 0);
     } else if (start.type === 'zone') {
       const at = start.sensor ? ctx.zoneTime?.(start.sensor, Number(start.n) || 1, !!start.rearm) : null;
+      value = at == null ? null : at + (Number(start.delay) || 0);
+    } else if (start.type === 'pressure') {
+      const at = start.sensor ? ctx.pressureTime?.(start.sensor, start.op ?? '>=', Number(start.value) || 0, !!start.rearm) : null;
       value = at == null ? null : at + (Number(start.delay) || 0);
     } else if (start.type === 'after') {
       const previous = actions.find((item) => item.id === start.action);
@@ -378,7 +381,7 @@ export function validateActions(actions, { targetIds = null, nozzleIds = null, s
       if (!master || master.kind !== 'rotate') warnings.push(`${label}: elegí el eje que lo mueve (una acción de giro)`);
       else if (master.id === action.id) warnings.push(`${label}: no puede seguirse a sí mismo`);
     }
-    if (action.start?.type === 'zone' && (!action.start.sensor || (sensorIds && !sensorIds.includes(action.start.sensor)))) warnings.push(`${label}: elegí un sensor para el disparo`);
+    if ((action.start?.type === 'zone' || action.start?.type === 'pressure') && (!action.start.sensor || (sensorIds && !sensorIds.includes(action.start.sensor)))) warnings.push(`${label}: elegí un sensor para el disparo`);
     if (action.start?.type === 'after' && !actions.some((item) => item.id === action.start.action)) warnings.push(`${label}: la acción previa no existe`);
   });
   return warnings;
@@ -408,6 +411,6 @@ export function pruneActions(actions, { targetIds, nozzleIds, sensorIds = null }
     ...action,
     targets: (action.targets ?? []).filter((id) => ids.has(id)),
     nozzle: action.nozzle && nozzleIds.includes(action.nozzle) ? action.nozzle : null,
-    start: sensorIds && action.start?.type === 'zone' && !sensorIds.includes(action.start.sensor) ? { ...action.start, sensor: null } : action.start,
+    start: sensorIds && (action.start?.type === 'zone' || action.start?.type === 'pressure') && !sensorIds.includes(action.start.sensor) ? { ...action.start, sensor: null } : action.start,
   }));
 }
