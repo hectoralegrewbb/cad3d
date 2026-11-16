@@ -96,4 +96,22 @@ const section = (solver, x, R) => solver.readBox([x, 0, 0], [6, 2 * R, 2 * R]);
   assert.ok(solver.maxSpeed() === 0 || Number.isFinite(solver.maxSpeed()));
 }
 
+// Aire inicial que no llega a la tolerancia (flujo pulsante): se da por desarrollado cuando el cambio por paso deja de mejorar,
+// en vez de frenar la emisión de granos hasta el tope de 800 pasos.
+{
+  const solver = makeSolver(() => 15, 15, { cells: 4000 });
+  assert.equal(solver.stalled(), false, 'sin historial no está estancado');
+  solver.deltaLog = Array.from({ length: 80 }, (_, i) => 0.04 + 0.004 * Math.sin(i));
+  assert.equal(solver.stalled(), true, 'cambio plano y lejos de la tolerancia = estancado');
+  solver.deltaLog = Array.from({ length: 80 }, (_, i) => 0.08 * 0.99 ** i);
+  assert.equal(solver.stalled(), false, 'si sigue bajando (>10 % por ventana) hay que seguir esperando');
+  solver.deltaLog = Array.from({ length: 60 }, () => 0.04);
+  assert.equal(solver.stalled(), false, 'hacen falta dos ventanas completas');
+  solver.deltaLog = Array.from({ length: 80 }, () => 0.04);
+  solver.setInlets([{ pos: [5, 0, 0], dir: [1, 0, 0], radius: 15, flow: 20 / 3600 }]);
+  assert.equal(solver.deltaLog.length, 0, 'cambiar las entradas reinicia el historial');
+  for (let i = 0; i < 100; i += 1) solver.step();
+  assert.ok(solver.deltaLog.length <= 80, 'el historial queda acotado');
+}
+
 console.log('airSolver.test OK');

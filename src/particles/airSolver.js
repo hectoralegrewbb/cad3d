@@ -111,6 +111,9 @@ function trilinearMasked(f, open, sx, sy, sz, gx, gy, gz) {
   return weight > 1e-6 ? sum / weight : 0;
 }
 
+const stallWindow = 40; // pasos por ventana
+const stallRatio = 0.9; // la ventana nueva debe mejorar al menos 10 % a la anterior para seguir esperando
+
 export class AirSolver {
   // lo, hi: caja del dominio en mm. bodies: [{ sdf, movable, … }] o [{ distance(x,y,z) }] (distancia con signo en mm, > 0 en el aire).
   constructor({ lo, hi, bodies = [], cells = 40000, rho = 1.2, mu = 1.81e-5, wallFriction = 0.004, smagorinsky = 0.12, cfl = 1.5, minWeight = MIN_WEIGHT, minCell = 0.3, wallShift = 0.05 }) {
@@ -180,6 +183,7 @@ export class AirSolver {
     this.steps = 0;
     this.delta = 1;
     this.settled = 0;
+    this.deltaLog = []; // últimos cambios por paso: detecta el flujo que ya no mejora (pulsante) aunque no llegue a la tolerancia
     this.stepCost = 0;
     this.pcgIterations = 0;
     this.grad = [0, 0, 0];
@@ -440,6 +444,7 @@ export class AirSolver {
     this.inlets = inlets;
     this.rebuildWeights();
     this.settled = 0;
+    this.deltaLog.length = 0;
   }
 
   applyInlets() {
@@ -1123,6 +1128,8 @@ export class AirSolver {
     for (let c = 0; c < this.nW; c += 1) { const d = this.w[c] - before[this.nU + this.nV + c]; change += d * d; total += this.w[c] * this.w[c]; }
     this.delta = Math.sqrt(change / Math.max(total, 1e-12));
     this.steps += 1;
+    this.deltaLog.push(this.delta);
+    if (this.deltaLog.length > 2 * stallWindow) this.deltaLog.shift();
     const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
     this.stepCost = this.stepCost ? this.stepCost * 0.7 + (t1 - t0) * 0.3 : t1 - t0;
     return this.delta;
@@ -1141,6 +1148,14 @@ export class AirSolver {
       if (now - start > budgetMs) break;
     }
     return this.settled >= 3;
+  }
+
+  // ¿El campo ya está desarrollado aunque no sea estacionario? Un chorro libre o un conducto con obstáculos pulsa para siempre:
+  // el cambio por paso se estanca muy por encima de la tolerancia. Se compara la media de la última ventana con la anterior.
+  stalled() {
+    if (this.deltaLog.length < 2 * stallWindow) return false;
+    const mean = (from) => { let sum = 0; for (let i = from; i < from + stallWindow; i += 1) sum += this.deltaLog[i]; return sum / stallWindow; };
+    return mean(stallWindow) > mean(0) * stallRatio;
   }
 
   // Resuelve hasta el estacionario.

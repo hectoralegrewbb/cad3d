@@ -269,7 +269,8 @@ export class ParticleSim {
   solveAirSlice(budgetMs) {
     const air = this.air;
     this.syncInlets();
-    const done = air.advance({ budgetMs, tolerance: 6e-3 }) || air.steps >= 800;
+    // Termina al converger, al estancarse (flujo pulsante: ya no mejora y esperar más solo demora los granos) o por tope de pasos.
+    const done = air.advance({ budgetMs, tolerance: 6e-3 }) || air.stalled() || air.steps >= 800;
     if (air.diverging()) {
       this.useQuickAir('El aire calculado se volvió inestable (geometría con aristas muy finas o caudal excesivo): se usa el modelo rápido');
       return { done: true, progress: 1 };

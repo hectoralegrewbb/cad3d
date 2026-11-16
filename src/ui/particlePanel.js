@@ -159,7 +159,7 @@ Volumen suelto equivalente ${fmt(fill.remainingLiters)} L · cavidad estimada ${
     const rotors = (this.stats?.rotors ?? []).map((r) => (r.follower ? `Eje ${r.key} (transmisión): ${fmt(r.rpm, 1)} rpm` : `Eje ${r.key}: ${fmt(r.rpm, 1)} rpm · motor ${fmt(r.motorTorque, 2)} N·m · carga de los granos ${fmt(r.loadTorque, 2)} N·m · fricción ${fmt(r.frictionTorque, 2)} N·m${r.rated > 0 ? ` · ${fmt((100 * Math.abs(r.motorTorque)) / r.rated)} % del nominal${Math.abs(r.motorTorque) > r.rated * 1.05 ? ' ⚠ SOBRECARGA' : ''}` : ''}${r.stuck ? ' · TRABADO' : ''}`));
     if (!air || air.model !== 'calculado') return [...rotors, air?.message ?? ''].filter(Boolean).join('\n');
     const lines = [...rotors];
-    if (!air.ready) lines.push(`Calculando el aire… ${Math.round(air.progress * 100)} % (${fmt(air.cellMm, 1)} mm por celda, ${fmt(air.stepMs)} ms por paso)`);
+    if (!air.ready) lines.push(`Calculando el aire… ${Math.round(air.progress * 100)} % (${fmt(air.cellMm, 1)} mm por celda, ${fmt(air.stepMs)} ms por paso). Los granos empiezan a caer cuando termina.`);
     else lines.push(`Aire: ${Math.round(air.cells / 1000)}k celdas de ${fmt(air.cellMm, 1)} mm · entra ${fmt(air.inletFlow)} m³/h · ${fmt(air.stepMs)} ms por paso`);
     const names = Object.fromEntries((this.hooks.getInfo().sensors ?? []).map((sensor) => [sensor.id, sensor.name || sensor.id]));
     Object.entries(air.readings ?? {}).forEach(([id, r]) => lines.push(`${names[id] ?? id}: p = ${fmt(r.pressure)} Pa · v = ${fmt(r.speed, 1)} m/s · Q = ${fmt(Math.abs(r.flow))} m³/h`));
