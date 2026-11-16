@@ -1,14 +1,47 @@
 // Vistas ortogonales (proyección del primer diedro, IRAM/ISO): geometría 2D de cada vista en coordenadas de papel (v hacia arriba).
 
 export const viewKinds = ['front', 'top', 'left', 'right', 'back', 'bottom', 'iso'];
-export const viewLabels = { front: 'Frente', top: 'Planta', left: 'Lateral izquierda', right: 'Lateral derecha', back: 'Posterior', bottom: 'Inferior', iso: 'Isométrica', section: 'Corte' };
+export const viewLabels = { front: 'Frente', top: 'Planta', left: 'Lateral izquierda', right: 'Lateral derecha', back: 'Posterior', bottom: 'Inferior', iso: 'Vista 3D', section: 'Corte' };
 
-// Vista isométrica: observador adelante (-Y), a la derecha (+X) y arriba (+Z).
+// Vista 3D (isométrica por defecto): `direction` apunta de la pieza al observador. El eje Z queda vertical en el papel;
+// si se mira a lo largo de Z no hay "arriba" definido y se toma +X como derecha (igual que planta/inferior).
 const unit = (v) => { const l = Math.hypot(...v); return v.map((c) => c / l); };
 const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-export const isoToViewer = unit([1, -1, 1]);
-const isoRight = unit(cross3([0, 0, 1], isoToViewer));
-const isoUp = cross3(isoToViewer, isoRight);
+export const defaultIsoDirection = [1, -1, 1];
+export const isoPresets = [
+  ['frontRightTop', 'Frente · derecha · arriba', [1, -1, 1]],
+  ['frontLeftTop', 'Frente · izquierda · arriba', [-1, -1, 1]],
+  ['backRightTop', 'Atrás · derecha · arriba', [1, 1, 1]],
+  ['backLeftTop', 'Atrás · izquierda · arriba', [-1, 1, 1]],
+  ['frontRightBottom', 'Frente · derecha · abajo', [1, -1, -1]],
+  ['frontLeftBottom', 'Frente · izquierda · abajo', [-1, -1, -1]],
+  ['backRightBottom', 'Atrás · derecha · abajo', [1, 1, -1]],
+  ['backLeftBottom', 'Atrás · izquierda · abajo', [-1, 1, -1]],
+];
+
+// Dirección válida (3 números finitos, no nula) o null.
+export function normalizeDirection(direction) {
+  if (!Array.isArray(direction) || direction.length !== 3) return null;
+  const v = direction.map(Number);
+  const l = Math.hypot(...v);
+  return v.every(Number.isFinite) && l > 1e-9 ? v.map((c) => c / l) : null;
+}
+
+// Base ortonormal de la vista 3D: { toViewer, right, up }.
+export function isoBasis(direction) {
+  const toViewer = normalizeDirection(direction) ?? unit(defaultIsoDirection);
+  const side = cross3([0, 0, 1], toViewer);
+  const right = Math.hypot(...side) < 1e-6 ? [1, 0, 0] : unit(side);
+  return { toViewer, right, up: cross3(toViewer, right) };
+}
+const defaultBasis = isoBasis(defaultIsoDirection);
+export const isoToViewer = defaultBasis.toViewer;
+
+// Preset que coincide con una dirección (o null si es una orientación libre, p. ej. tomada del visor).
+export function isoPresetOf(direction) {
+  const { toViewer } = isoBasis(direction);
+  return isoPresets.find(([, , dir]) => unit(dir).every((c, i) => Math.abs(c - toViewer[i]) < 1e-3))?.[0] ?? null;
+}
 
 // Vista base de cada plano de corte: 'x' mira desde -X (queda x >= offset), 'y' desde -Y (y >= offset), 'z' desde +Z (z <= offset).
 export const sectionBase = { x: 'left', y: 'front', z: 'top' };
@@ -16,8 +49,8 @@ export const sectionBase = { x: 'left', y: 'front', z: 'top' };
 // Nombre de la proyección en el kernel (sus nombres left/right están invertidos respecto de la norma).
 const kernelKind = { front: 'front', back: 'back', top: 'top', bottom: 'bottom', left: 'right', right: 'left' };
 
-// Punto 3D -> coordenadas de papel de cada vista (observador mirando la pieza).
-export function toViewPoint(kind, [x, y, z]) {
+// Punto 3D -> coordenadas de papel de cada vista (observador mirando la pieza). `basis` solo aplica a la vista 3D.
+export function toViewPoint(kind, [x, y, z], basis = defaultBasis) {
   switch (kind) {
     case 'front': return [x, z];
     case 'back': return [-x, z];
@@ -25,13 +58,14 @@ export function toViewPoint(kind, [x, y, z]) {
     case 'bottom': return [x, -y];
     case 'left': return [-y, z]; // observador en -X
     case 'right': return [y, z]; // observador en +X
-    case 'iso': return [x * isoRight[0] + y * isoRight[1] + z * isoRight[2], x * isoUp[0] + y * isoUp[1] + z * isoUp[2]];
+    case 'iso': return [x * basis.right[0] + y * basis.right[1] + z * basis.right[2], x * basis.up[0] + y * basis.up[1] + z * basis.up[2]];
     default: throw new Error(`Vista desconocida: ${kind}`);
   }
 }
 
 // Dirección de mirada (de la cámara hacia la pieza) de cada vista, para saber qué ejes se ven de frente.
 export const viewDirection = { front: [0, 1, 0], back: [0, -1, 0], top: [0, 0, -1], bottom: [0, 0, 1], left: [1, 0, 0], right: [-1, 0, 0], iso: isoToViewer.map((c) => -c) };
+export const viewDirectionOf = (kind, basis = defaultBasis) => (kind === 'iso' ? basis.toViewer.map((c) => -c) : viewDirection[kind]);
 
 // Convierte una coordenada del SVG del kernel a papel: en vistas laterales/frente se invierte la y; planta/inferior no.
 const flipsY = (kind) => kind !== 'top' && kind !== 'bottom';
@@ -152,9 +186,9 @@ function stitch(polylines, tolerance = 1e-4) {
   return chains;
 }
 
-function projectEdges(rep, shape, kind) {
+function projectEdges(rep, shape, kind, basis) {
   const oc = rep.getOC();
-  const camera = kind === 'iso' ? new rep.ProjectionCamera([0, 0, 0], isoToViewer, isoRight) : rep.lookFromPlane(kernelKind[kind]);
+  const camera = kind === 'iso' ? new rep.ProjectionCamera([0, 0, 0], basis.toViewer, basis.right) : rep.lookFromPlane(kernelKind[kind]);
   // Marca como continuas (G1) las aristas entre caras tangentes: HLR las separa como "suaves" y no las dibujamos.
   try {
     oc.BRepLib.EncodeRegularity(shape.wrapped);
@@ -178,19 +212,19 @@ function projectEdges(rep, shape, kind) {
   return result;
 }
 
-export function projectView(rep, shape, kind) {
+export function projectView(rep, shape, kind, basis = defaultBasis) {
   let projected;
   try {
-    projected = projectEdges(rep, shape, kind);
+    projected = projectEdges(rep, shape, kind, basis);
   } catch {
     projected = null;
   }
   if (projected && (projected.visible.length || projected.hidden.length)) return { kind, ...projected, bbox: bboxOf(projected.visible.length ? projected.visible : projected.hidden) };
-  return projectViewLegacy(rep, shape, kind);
+  return projectViewLegacy(rep, shape, kind, basis);
 }
 
-function projectViewLegacy(rep, shape, kind) {
-  const camera = kind === 'iso' ? new rep.ProjectionCamera([0, 0, 0], isoToViewer, isoRight) : kernelKind[kind];
+function projectViewLegacy(rep, shape, kind, basis) {
+  const camera = kind === 'iso' ? new rep.ProjectionCamera([0, 0, 0], basis.toViewer, basis.right) : kernelKind[kind];
   const projection = rep.drawProjection(shape, camera);
   const sign = flipsY(kind) ? -1 : 1;
   const convert = (drawing) =>

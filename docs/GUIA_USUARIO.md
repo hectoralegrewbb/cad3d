@@ -63,7 +63,7 @@ Cualquier campo acepta números o expresiones: `Dext/2 + 1,5`. Creá **parámetr
 
 Pasá a **Plano**. Hoja A4 (o A3/A2), apaisada o vertical, marco y cajetín ISO 7200, **primer diedro**, escala automática.
 
-- **Vistas**: frente, planta, laterales, posterior, inferior, isométrica y **cortes con rayado**; líneas ocultas y ejes opcionales; rotación 90°. *Mover vistas* (`M`, o `Alt`+arrastrar) las reubica con sus cotas.
+- **Vistas**: frente, planta, laterales, posterior, inferior, **vista 3D orientable** (8 esquinas isométricas o *Tomar del visor 3D* para usar la orientación actual del modelo; no se acota) y **cortes con rayado**; líneas ocultas y ejes opcionales; rotación 90°. *Mover vistas* (`M`, o `Alt`+arrastrar) las reubica con sus cotas.
 - **Cotas automáticas** (ISO 129): medidas generales, diámetros, cadenas, «n× Ø», PCD, roscas. Cualquiera se puede quitar y restaurar.
 - **Cotas manuales**: lineal (`L`, `Shift` = alineada), Ø (`D`), R (`R`). Arrastrá una cota o su rótulo para moverla; el texto se edita (prefijo/sufijo).
 - **Escala por vista**: en «Vistas», cada vista tiene su **escala propia** (− / + recorren las escalas ISO, el menú elige una, y «otra» acepta `3:1`, `1:3` o `1,5`). «= hoja» sigue la escala general. Las vistas ampliadas se rotulan «Esc. 2:1» y, si todas tienen escala propia, el cajetín dice «Indicada». Sirve para agrandar un detalle sin achicar el resto.

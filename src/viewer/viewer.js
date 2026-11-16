@@ -921,6 +921,14 @@ export class Viewer {
     this.render();
   }
 
+  // Dirección de la pieza hacia el observador (para llevar la orientación actual a la vista 3D del plano).
+  getViewDirection() {
+    const v = this.camera.position.clone().sub(this.controls.target);
+    if (v.lengthSq() < 1e-12) return null;
+    v.normalize();
+    return [v.x, v.y, v.z].map((c) => Math.round(c * 1e4) / 1e4);
+  }
+
   // Vistas estándar.
   setView(name) {
     const size = this.bounds ? Math.max(...this.bounds.size, 20) : 100;

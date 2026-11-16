@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { loadKernel } from '../src/kernel/occNode.js';
 import { buildPart } from '../src/kernel/partBuilder.js';
 import { extractMesh } from '../src/kernel/meshExtractor.js';
-import { projectView, toViewPoint, viewKinds } from '../src/drawing/projection.js';
+import { isoBasis, isoPresetOf, isoPresets, projectView, toViewPoint, viewKinds } from '../src/drawing/projection.js';
 import { buildDrawing } from '../src/drawing/buildDrawing.js';
 import { templates } from '../src/data/templates.js';
 
@@ -48,5 +48,36 @@ for (const key of ['soporte', 'placa', 'eje', 'brida']) {
     const onGeometry = (point) => view.visible.concat(view.hidden).some((line) => line.some((p, i) => i > 0 && distToSegment(point, line[i - 1], p) < 0.05)) || view.circles.some((c) => Math.abs(Math.hypot(point[0] - c.center[0], point[1] - c.center[1]) - c.radius) < 0.05 || Math.hypot(point[0] - c.center[0], point[1] - c.center[1]) < 0.05) || view.revolveView;
     assert.ok(onGeometry(dim.a) && onGeometry(dim.b), `${key}/${dim.view}: cota fuera de la geometría ${JSON.stringify([dim.a, dim.b])}`);
   });
+}
+// Vista 3D orientable: cualquier dirección (presets, libre del visor, o a lo largo de Z) debe proyectar igual que la regla de papel.
+{
+  const part = templates.soporte.build();
+  const { shape } = buildPart(rep, part);
+  const mesh = extractMesh(shape);
+  const directions = [...isoPresets.map(([, , dir]) => dir), [0.31, -0.9, 0.22], [0, 0, 1], [0, 0, -1], [1, 0, 0]];
+  for (const direction of directions) {
+    const basis = isoBasis(direction);
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    assert.ok(Math.abs(dot(basis.right, basis.up)) < 1e-9 && Math.abs(dot(basis.right, basis.toViewer)) < 1e-9 && Math.abs(Math.hypot(...basis.up) - 1) < 1e-9, `base no ortonormal para ${direction}`);
+    const edges2d = mesh.edges.map((edge) => {
+      const pts = [];
+      for (let i = 0; i < edge.points.length; i += 3) pts.push(toViewPoint('iso', [edge.points[i], edge.points[i + 1], edge.points[i + 2]], basis));
+      return pts;
+    });
+    const projected = projectView(rep, shape, 'iso', basis);
+    assert.ok(projected.visible.length > 0, `vista 3D ${direction}: sin líneas visibles`);
+    const bad = projected.visible.flat().filter((point) => !edges2d.some((pts) => pts.some((p, i) => i > 0 && distToSegment(point, pts[i - 1], p) < 0.05)));
+    assert.equal(bad.length, 0, `vista 3D ${direction}: ${bad.length} puntos fuera de las aristas proyectadas`);
+  }
+  // La dirección viaja en la config de la vista y cambia el resultado del plano.
+  const withIso = (direction) => buildDrawing(rep, shape, { ...part, drawing: { ...(part.drawing ?? {}), views: [{ id: 'front', kind: 'front', rotation: 0 }, { id: 'iso', kind: 'iso', rotation: 0, direction }] } }).viewModels.find((view) => view.kind === 'iso');
+  const a = withIso(undefined);
+  const b = withIso([-1, 1, 1]);
+  assert.notDeepEqual(a.visible, b.visible, 'la orientación de la vista 3D no cambia la proyección');
+  assert.deepEqual(a.visible, withIso([1, -1, 1]).visible, 'sin dirección debe ser la isométrica clásica');
+  assert.equal(isoPresetOf(undefined), 'frontRightTop');
+  assert.equal(isoPresetOf([-2, 2, 2]), 'backLeftTop');
+  assert.equal(isoPresetOf([0.31, -0.9, 0.22]), null);
+  assert.equal(isoPresetOf(['x', 0, 0]), 'frontRightTop');
 }
 console.log('OK vistas y lados');

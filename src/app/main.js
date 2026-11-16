@@ -918,6 +918,10 @@ const planoPanel = new PlanoPanel(byId('planoPanel'), {
   onView: (id, patch) => applyDoc((state) => commands.setView(state, id, patch)),
   onToggleView: (kind) => applyDoc((state) => commands.toggleView(state, kind)),
   onToggleSection: () => applyDoc((state) => commands.toggleSection(state)),
+  onIsoFromViewer: (id) => {
+    const direction = viewer.getViewDirection();
+    if (direction) applyDoc((state) => commands.setView(state, id, { direction }));
+  },
   onDimText: (dim, patch) => applyDoc((state) => commands.setDimField(state, dim, patch)),
   onDeleteDim: (dim) => deleteDimById(dim.id),
   onResetDimPositions: () => applyDoc((state) => commands.resetDimPositions(state)),

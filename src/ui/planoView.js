@@ -99,9 +99,14 @@ export class PlanoView {
     return this.result.layout.placements.find((placement) => placement.id === viewId);
   }
 
+  // La vista 3D no se acota: sus longitudes están proyectadas y la medida sería falsa.
+  dimensionableViews() {
+    return this.result.viewModels.filter((view) => view.kind !== 'iso');
+  }
+
   candidates() {
     const out = [];
-    this.result.viewModels.forEach((view) => {
+    this.dimensionableViews().forEach((view) => {
       const placement = this.placementOf(view.id);
       const push = (point, kind) => out.push({ view: view.id, local: point, sheet: toSheet(placement, point), kind });
       view.corners.forEach((point) => push(point, 'vertex'));
@@ -129,7 +134,7 @@ export class PlanoView {
   // Círculo/arco de una vista más cercano a un punto (para cotas de Ø y R).
   circleAt(point) {
     let best = null;
-    this.result.viewModels.forEach((view) => {
+    this.dimensionableViews().forEach((view) => {
       const placement = this.placementOf(view.id);
       view.circles.filter((circle) => circle.mode === 'face').forEach((circle) => {
         const center = toSheet(placement, circle.center);

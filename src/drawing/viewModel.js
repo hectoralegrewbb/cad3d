@@ -1,4 +1,4 @@
-import { projectView, sectionBase, toViewPoint, viewDirection } from './projection.js';
+import { isoBasis, projectView, sectionBase, toViewPoint, viewDirectionOf } from './projection.js';
 import { cutShape, sectionLoops } from './section.js';
 
 const rotate = ([u, v], quarterTurns) => {
@@ -72,13 +72,14 @@ export function buildViewModel(rep, shape, info, config) {
     projectedShape = cutShape(rep, shape, config.plane ?? 'x', config.offset ?? 0);
     loops3d = sectionLoops(projectedShape, config.plane ?? 'x', config.offset ?? 0);
   }
-  const projected = projectView(rep, projectedShape, kind);
+  const basis = isoBasis(config.direction); // solo la usa la vista 3D
+  const projected = projectView(rep, projectedShape, kind, basis);
   // Caja exacta de la pieza proyectada: las polilíneas de los arcos no incluyen los puntos extremos (65,99 en vez de 66).
   const exact = config.kind === 'iso' ? null : (() => {
     try {
       const [lo, hi] = projectedShape.boundingBox.bounds;
       const pts = [];
-      [lo[0], hi[0]].forEach((x) => [lo[1], hi[1]].forEach((y) => [lo[2], hi[2]].forEach((z) => pts.push(rotate(toViewPoint(kind, [x, y, z]), rotation)))));
+      [lo[0], hi[0]].forEach((x) => [lo[1], hi[1]].forEach((y) => [lo[2], hi[2]].forEach((z) => pts.push(rotate(toViewPoint(kind, [x, y, z], basis), rotation)))));
       return { minX: Math.min(...pts.map((p) => p[0])), maxX: Math.max(...pts.map((p) => p[0])), minY: Math.min(...pts.map((p) => p[1])), maxY: Math.max(...pts.map((p) => p[1])) };
     } catch {
       return null;
@@ -88,8 +89,8 @@ export function buildViewModel(rep, shape, info, config) {
   const rot = (polylines) => polylines.map((line) => line.map((p) => rotate(p, rotation)));
   const visible = rot(projected.visible);
   const hidden = rot(projected.hidden);
-  const map = (point3) => rotate(toViewPoint(kind, point3), rotation);
-  const direction = viewDirection[kind];
+  const map = (point3) => rotate(toViewPoint(kind, point3, basis), rotation);
+  const direction = viewDirectionOf(kind, basis);
   const projectedCircles = circles.map((circle) => {
     const facing = Math.abs(circle.normal[0] * direction[0] + circle.normal[1] * direction[1] + circle.normal[2] * direction[2]);
     const center = map(circle.center);
@@ -141,7 +142,7 @@ export function buildViewModel(rep, shape, info, config) {
   // Eje de revolución en la vista: de canto (se ve la sección circular) o de costado (se ve el perfil).
   let revolveView = null;
   if (revolve) {
-    const dir = viewDirection[kind];
+    const dir = direction;
     const facing = Math.abs(revolve.vector[0] * dir[0] + revolve.vector[1] * dir[1] + revolve.vector[2] * dir[2]);
     const origin = map(revolve.point);
     if (facing > 0.999) revolveView = { mode: 'end', origin, cylinders: revolve.cylinders };

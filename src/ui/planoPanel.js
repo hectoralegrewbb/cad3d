@@ -1,7 +1,7 @@
 import { button, checkInput, el, exprInput, field, section, selectInput, textInput } from './dom.js';
 import { materials } from '../drawing/features3d.js';
 import { sheetSizes, isoScales, formatScale, parseScale, stepScale } from '../drawing/sheet.js';
-import { viewKinds, viewLabels } from '../drawing/projection.js';
+import { isoPresetOf, isoPresets, viewKinds, viewLabels } from '../drawing/projection.js';
 
 // Panel derecho del modo Plano: hoja, vistas, cotas, cajetín y exportaciones.
 export class PlanoPanel {
@@ -49,6 +49,7 @@ export class PlanoPanel {
       }
       c.append(row);
       if (view) c.append(this.viewScaleRow(view, info.sheetScale));
+      if (view && kind === 'iso') c.append(this.isoOrientationRow(view));
     });
 
     const sec = drawing.views.find((item) => item.kind === 'section');
@@ -87,6 +88,21 @@ export class PlanoPanel {
       button('DXF', () => this.h.onExport('dxf'))));
     c.append(el('p', { class: 'hint-block', text: 'Rueda: zoom · Espacio+arrastrar o botón central: mover · F: ajustar. Shift al ubicar una cota lineal la deja alineada.' }));
   }
+  // Orientación de la vista 3D: una de las 8 esquinas isométricas o la que tenga el visor 3D en este momento.
+  isoOrientationRow(view) {
+    const preset = isoPresetOf(view.direction);
+    const options = isoPresets.map(([key, label]) => [key, label]);
+    if (!preset) options.unshift(['custom', 'Personalizada (del visor)']);
+    const select = selectInput(options, preset ?? 'custom', (key) => {
+      const found = isoPresets.find(([id]) => id === key);
+      if (found) this.h.onView(view.id, { direction: [...found[2]] });
+    });
+    return el('div', { class: 'view-row view-scale' },
+      el('span', { class: 'muted', text: 'Orientación' }),
+      select,
+      button('Tomar del visor 3D', () => this.h.onIsoFromViewer(view.id), { title: 'Usa la orientación con la que dejaste el modelo en el modo 3D' }));
+  }
+
   // Escala propia de una vista: «= hoja» o un valor ISO / libre (2:1, 1:3, 1,5). − / + recorren las escalas normalizadas.
   viewScaleRow(view, sheetScale) {
     const own = parseScale(view.scale);
