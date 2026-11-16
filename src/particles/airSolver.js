@@ -447,6 +447,50 @@ export class AirSolver {
     this.deltaLog.length = 0;
   }
 
+  // Sección de entrada conectada al centro en el plano del disco. El margen radial permite cubrir las caras de pared
+  // parciales, pero no debe alcanzar otro conducto ni el aire exterior. Se comprueba la conectividad transversal a ambos
+  // lados del plano contra las mismas membranas/caras que usa el solver, sin depender del espesor de la chapa.
+  inletSection(faces, axis, pos) {
+    if (!faces.length) return faces;
+    const others = [0, 1, 2].filter(a => a !== axis);
+    const [nx, ny] = this.dims;
+    const key = ijk => ijk[others[0]] + this.dims[others[0]] * ijk[others[1]];
+    const candidates = new Map(faces.map(item => [key(item.ijk), item]));
+    const distance = item => others.reduce((sum, a) => sum + (this.origin[a] + (item.ijk[a] + 0.5) * this.hmm - pos[a]) ** 2, 0);
+    const seed = faces.reduce((best, item) => distance(item) < distance(best) ? item : best);
+    // Si no hay una cara alrededor del centro, no desplazar silenciosamente la entrada hacia otro hueco.
+    if (distance(seed) > this.hmm * this.hmm * 0.5 + 1e-8) return [];
+    const passage = (from, to, transverse) => {
+      for (const side of [-1, 0]) {
+        const at = from.slice();
+        at[axis] += side;
+        if (at[axis] < 0 || at[axis] >= this.dims[axis]) continue;
+        at[transverse] = Math.max(from[transverse], to[transverse]);
+        const [i, j, k] = at;
+        const weight = transverse === 0 ? this.au[i + (nx + 1) * (j + ny * k)]
+          : transverse === 1 ? this.av[i + nx * (j + (ny + 1) * k)]
+          : this.aw[i + nx * (j + ny * k)];
+        if (!(weight > 0)) return false;
+      }
+      return true;
+    };
+    const section = [seed];
+    const seen = new Set([seed.face]);
+    for (let head = 0; head < section.length; head += 1) {
+      const current = section[head];
+      for (const a of others) for (const sign of [-1, 1]) {
+        const at = current.ijk.slice();
+        at[a] += sign;
+        if (at[a] < 0 || at[a] >= this.dims[a]) continue;
+        const next = candidates.get(key(at));
+        if (!next || seen.has(next.face) || !passage(current.ijk, next.ijk, a)) continue;
+        seen.add(next.face);
+        section.push(next);
+      }
+    }
+    return section;
+  }
+
   applyInlets() {
     const [nx, ny, nz] = this.dims;
     const { hmm, origin } = this;
@@ -463,14 +507,13 @@ export class AirSolver {
       const planeIndex = Math.min(faceMax, Math.max(1, plane));
       const arrays = [[this.au, this.bu, this.qu, nx + 1, ny, nz], [this.av, this.bv, this.qv, nx, ny + 1, nz], [this.aw, this.bw, this.qw, nx, ny, nz + 1]][axis];
       const [weights, types, values, sx, sy] = arrays;
-      const faces = [];
-      let area = 0;
+      const candidates = [];
       const lim = [this.dims[others[0]], this.dims[others[1]]];
       for (let b = 0; b < lim[1]; b += 1) {
         for (let a = 0; a < lim[0]; a += 1) {
           const ca = origin[others[0]] + (a + 0.5) * hmm - inlet.pos[others[0]];
           const cb = origin[others[1]] + (b + 0.5) * hmm - inlet.pos[others[1]];
-          const reach = inlet.radius + hmm; // una celda de margen: si no, las caras parciales de la pared dejan un anillo por donde el aire recircula
+          const reach = inlet.radius + hmm; // cubrir caras parciales; inletSection excluye el exterior al otro lado de la pared
           if (ca * ca + cb * cb > reach * reach) continue;
           const ijk = [0, 0, 0];
           ijk[axis] = planeIndex;
@@ -478,10 +521,11 @@ export class AirSolver {
           ijk[others[1]] = b;
           const face = ijk[0] + sx * (ijk[1] + sy * ijk[2]);
           if (weights[face] <= 0) continue;
-          faces.push({ face, ijk });
-          area += weights[face] * this.h * this.h;
+          candidates.push({ face, ijk });
         }
       }
+      const faces = this.inletSection(candidates, axis, inlet.pos);
+      const area = faces.reduce((sum, item) => sum + weights[item.face] * this.h * this.h, 0);
       if (!faces.length) {
         this.warnings.push(`Entrada ${index + 1}: la boca no toca aire (revisá posición y radio)`);
         return;

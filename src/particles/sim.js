@@ -219,6 +219,7 @@ export class ParticleSim {
         this.solverMode = true;
         this.airSettled = false;
         this.airStarted = false; // el cálculo inicial frena la emisión; después el aire se reajusta en vuelo sin frenarla
+        this.initialAirSolve = { status: 'pending', steps: 0, residual: null };
         this.inletKey = '';
         this.syncInlets();
       } catch (error) {
@@ -262,7 +263,10 @@ export class ParticleSim {
     if (key === this.inletKey) return;
     this.inletKey = key;
     this.air.setInlets(inlets);
-    if (!this.airStarted) this.airSettled = false;
+    if (!this.airStarted) {
+      this.airSettled = false;
+      this.initialAirSolve = { status: 'pending', steps: 0, residual: null };
+    }
     if (this.air.warnings.length) this.airMessage = this.air.warnings.join(' · ');
   }
 
@@ -275,8 +279,11 @@ export class ParticleSim {
   solveAirSlice(budgetMs) {
     const air = this.air;
     this.syncInlets();
-    // Termina al converger, al estancarse (flujo pulsante: ya no mejora y esperar más solo demora los granos) o por tope de pasos.
-    const done = air.advance({ budgetMs, tolerance: 6e-3 }) || air.stalled() || air.steps >= 800;
+    // Preparación terminada no implica convergencia: conservar el motivo y el Δ antes de reiniciar el contador de pasos.
+    const converged = air.advance({ budgetMs, tolerance: 6e-3 });
+    const status = converged ? 'converged' : air.steps >= 800 ? 'limit' : air.stalled() ? 'stalled' : 'pending';
+    const done = status !== 'pending';
+    this.initialAirSolve = { status, steps: air.steps, residual: air.delta };
     if (air.diverging()) {
       this.useQuickAir('El aire calculado se volvió inestable (geometría con aristas muy finas o caudal excesivo): se usa el modelo rápido');
       return { done: true, progress: 1 };
@@ -421,6 +428,7 @@ export class ParticleSim {
       stepMs: air.stepCost,
       pcg: air.pcgIterations,
       residual: air.delta,
+      initialSolve: this.initialAirSolve ? { ...this.initialAirSolve } : null,
       inletFlow: air.inletFlow() * 3600,
       readings: this.airReadings,
       plug: this.plugInfo(),
@@ -1852,7 +1860,10 @@ export class ParticleSim {
     this.zoneAbove.clear();
     this.pressureLast.clear();
     this.pressureAbove.clear();
+    this.pressureReached.clear();
     this.probeState.clear();
+    this.probeReadings = {};
+    this.airReadings = {};
     this.productsExited = 0;
     this.feeders.forEach((feeder) => { feeder.timer = feeder.start ?? 0; feeder.spawned = 0; });
     this.bodies.forEach((body) => { body.torqueAcc = 0; });

@@ -141,4 +141,14 @@ recorder.push({ time: 1, perSecond: 0, count: 0, exited: 0, air: sim.airInfo(), 
 assert.ok(recorder.keys().includes('p:s3') && recorder.keys().includes('v:s1') && recorder.keys().includes('q:z1'));
 assert.equal(recorder.keys().includes('q:s1'), false);
 assert.doesNotThrow(() => structuredClone(sim.airInfo()), 'las lecturas cruzan el worker');
+// Reinicio: el presostato debe esperar un umbral nuevo y el visor no debe recibir lecturas de la corrida anterior.
+assert.ok(sim.pressureReached.size > 0);
+sim.resetDynamics();
+assert.equal(sim.pressureReached.size, 0, 'reiniciar borra también el primer disparo');
+assert.equal(sim.pressureLast.size, 0);
+assert.equal(sim.pressureAbove.size, 0);
+assert.equal(sim.probeState.size, 0);
+assert.deepEqual(sim.probeReadings, {});
+assert.deepEqual(sim.airInfo().readings, {});
+assert.equal(resolveStarts(actions, { pressureTime: (sensor, op, value) => sim.pressureReached.get(`${sensor}:${op}:${value}`) ?? null }).get('a1'), null);
 console.log(`pressureSensor.test OK · p1 ${r.s1.pressure.toFixed(1)} Pa · p2 ${r.s2.pressure.toFixed(1)} Pa · Δp ${r.s3.pressure.toFixed(1)} Pa · total ${r.s4.pressure.toFixed(1)} Pa · v ${r.s1.speed.toFixed(1)} m/s`);
