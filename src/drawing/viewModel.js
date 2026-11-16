@@ -1,5 +1,6 @@
 import { isoBasis, projectView, sectionBase, toViewPoint, viewDirectionOf } from './projection.js';
 import { cutShape, sectionLoops } from './section.js';
+import { pictorialHoleMarks, pictorialThreadMarks } from './threadPictorial.js';
 
 const rotate = ([u, v], quarterTurns) => {
   switch (((quarterTurns % 4) + 4) % 4) {
@@ -112,12 +113,19 @@ export function buildViewModel(rep, shape, info, config) {
     const facing = Math.abs(thread.vector[0] * direction[0] + thread.vector[1] * direction[1] + thread.vector[2] * direction[2]);
     const radius = (thread.internal ? thread.major : thread.minor) / 2;
     if (facing > 0.999) return threadMarks.push({ mode: 'end', center: map(thread.p0), radius, internal: thread.internal, label: thread.label });
-    if (facing >= 0.001) return;
+    // En oblicuo (vista 3D) no hay representación normalizada: hélice o boca pictórica.
+    if (facing >= 0.001) return config.kind === 'iso' ? threadMarks.push(...pictorialThreadMarks(thread, basis.toViewer, map, visible)) : undefined;
     const a = map(thread.p0);
     const b = map(thread.p1);
     const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
     threadMarks.push({ mode: 'side', a, b, perp: [-(b[1] - a[1]) / l, (b[0] - a[0]) / l], radius, internal: thread.internal, label: thread.label });
   });
+  if (config.kind === 'iso') {
+    // Una rosca interna con rango ya marcó su boca: no se repite por el Ø de la broca.
+    const taken = threadMarks.filter((mark) => mark.shape === 'mouth');
+    const repeated = (mark) => taken.some((other) => Math.hypot(other.o[0] - mark.o[0], other.o[1] - mark.o[1]) < 1e-3 && Math.abs(other.radius - mark.radius) < 1e-3);
+    threadMarks.push(...pictorialHoleMarks(circles, info.threadHoles ?? [], basis.toViewer, map, visible).filter((mark) => !repeated(mark)));
+  }
   // Círculo primitivo de los engranajes vistos de frente (línea de ejes).
   (info.gears3d ?? []).forEach((gear) => {
     const facing = Math.abs(gear.vector[0] * direction[0] + gear.vector[1] * direction[1] + gear.vector[2] * direction[2]);

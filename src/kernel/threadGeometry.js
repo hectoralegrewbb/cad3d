@@ -27,7 +27,7 @@ export function threadSpec(feature, params) {
   const major = row.major;
   const minor = feature.internal ? row.tap : major - 1.2269 * row.pitch;
   return {
-    from, to, chamferStart, chamferEnd, axis: feature.axis, vector: axisVectors[feature.axis], cx, cy, lo, hi, length: hi - lo, row, pitch: row.pitch, internal: Boolean(feature.internal),
+    from, to, chamferStart, chamferEnd, axis: feature.axis, vector: axisVectors[feature.axis], cx, cy, lo, hi, length: hi - lo, row, pitch: row.pitch, internal: Boolean(feature.internal), lefthand: Boolean(feature.lefthand),
     major, minor, p0: pointOn(feature.axis, cx, cy, lo), p1: pointOn(feature.axis, cx, cy, hi),
     label: `${row.label} L=${Math.round((hi - lo) * 100) / 100}`.replace('.', ','),
   };

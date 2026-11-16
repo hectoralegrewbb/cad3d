@@ -1,3 +1,4 @@
+import { pictorialPolylines } from './threadPictorial.js';
 import { autoDimensions, faceCircles } from './autoDims.js';
 import { dimMargins } from './dimExtents.js';
 import { dimensionPrimitives } from './dimensions.js';
@@ -319,6 +320,8 @@ export function buildSheetPrimitives({ viewModels, drawing, meta, mass = 0, boun
       } else if (mark.mode === 'root') {
         const points = Array.from({ length: 73 }, (_, i) => toSheet(placement, [mark.center[0] + mark.radius * Math.cos((i / 72) * 2 * Math.PI), mark.center[1] + mark.radius * Math.sin((i / 72) * 2 * Math.PI)]));
         primitives.push({ k: 'poly', points, layer: 'dims', view: view.id });
+      } else if (mark.mode === 'pictorial') {
+        pictorialPolylines(mark, placement.scale, view.visible).forEach((line) => primitives.push({ k: 'poly', points: line.map((p) => toSheet(placement, p)), layer: 'dims', view: view.id }));
       } else if (mark.mode === 'end') {
         const points = Array.from({ length: 55 }, (_, i) => {
           const a = (0.15 + (i / 54) * 1.5) * Math.PI;

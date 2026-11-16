@@ -113,6 +113,56 @@ assert.ok(dv > 3 && dv < 60, `quita material cerca del agujero (${dv})`);
   const removed = volume(cyl) - volume(cutThread(rep, cyl, sp));
   assert.ok(removed > 100 && removed < 160, `eje Y (${removed})`);
 }
+// Vista 3D del plano: rosca externa como hélice fina, bocas roscadas con ¾ de elipse (solo las que se ven), sin duplicados.
+{
+  const { pictorialPolylines } = await import('../src/drawing/threadPictorial.js');
+  const sketchWith = (base, plane, entity) => {
+    const next = commands.addFeature(base, 'sketch', { plane });
+    const id = next.features[next.features.length - 1].id;
+    return [commands.addEntity(next, id, entity), id];
+  };
+  let demo = createPart('rosca 3D');
+  let sketchId;
+  [demo, sketchId] = sketchWith(demo, 'XY', { t: 'rect', x: 0, y: 0, w: 60, h: 40, centered: true });
+  demo = commands.addFeature(demo, 'extrude', { sketch: sketchId, depth: 12 });
+  [demo, sketchId] = sketchWith(demo, 'XY', { t: 'circle', x: -15, y: 0, d: 16 });
+  demo = commands.addFeature(demo, 'extrude', { sketch: sketchId, depth: 45 });
+  demo = commands.addFeature(demo, 'thread', { axis: 'z', cx: -15, cy: 0, d: 16, from: 20, to: 45 });
+  demo = commands.addFeature(demo, 'hole', { plane: 'XY', x: 18, y: 8, d: 6.8, through: true, thread: { on: true, type: 'M', size: 'auto', depth: '' } });
+  demo = commands.addFeature(demo, 'hole', { plane: 'XY', x: 18, y: -10, d: 5, through: true });
+  demo = commands.addFeature(demo, 'thread', { axis: 'z', cx: 18, cy: -10, from: 0, to: 12, d: 6, internal: true });
+  const { shape } = buildPart(rep, demo);
+  const { buildDrawing } = await import('../src/drawing/buildDrawing.js');
+  const isoOf = (direction) => {
+    const drawn = buildDrawing(rep, shape, { ...demo, drawing: { ...(demo.drawing ?? {}), views: [{ id: 'front', kind: 'front', rotation: 0 }, { id: 'iso', kind: 'iso', rotation: 0, direction }] } });
+    return { view: drawn.viewModels.find((v) => v.kind === 'iso'), drawn };
+  };
+  for (const direction of [[1, -1, 1], [-1, -1, -1]]) {
+    const { view, drawn } = isoOf(direction);
+    const marks = view.threadMarks.filter((m) => m.mode === 'pictorial');
+    assert.equal(marks.filter((m) => m.shape === 'helix').length, 1, `vista 3D ${direction}: una hélice para la rosca externa`);
+    assert.equal(marks.filter((m) => m.shape === 'mouth').length, 2, `vista 3D ${direction}: una boca por agujero roscado (la del lado visible, sin repetir)`);
+    const helix = marks.find((m) => m.shape === 'helix');
+    const lines = pictorialPolylines(helix, 1, view.visible);
+    assert.ok(lines.length >= 8 && lines.length <= 14, `vista 3D ${direction}: filetes dibujados = ${lines.length}`);
+    // Todos los puntos de la hélice caen dentro del contorno proyectado del cilindro (radio mayor).
+    const axisLength = Math.hypot(...helix.a);
+    lines.flat().forEach(([x, y]) => {
+      const along = ((x - helix.o[0]) * helix.a[0] + (y - helix.o[1]) * helix.a[1]) / axisLength;
+      const across = Math.abs((x - helix.o[0]) * -helix.a[1] + (y - helix.o[1]) * helix.a[0]) / axisLength;
+      assert.ok(across <= helix.radius + 1e-6 && along > -helix.radius - 1e-6, 'punto de la hélice fuera del cilindro');
+    });
+    assert.doesNotThrow(() => JSON.stringify(drawn.viewModels.map(({ map, ...rest }) => rest)), 'las marcas deben ser datos planos (cruzan el worker)');
+  }
+  const { view } = isoOf([1, -1, 1]);
+  const helix = view.threadMarks.find((m) => m.shape === 'helix');
+  // Escala chica: se espacian los filetes (≥ 0,8 mm de papel) en vez de empastar.
+  assert.ok(pictorialPolylines(helix, 0.1, view.visible).length < pictorialPolylines(helix, 1, view.visible).length, 'a escala chica deben dibujarse menos filetes');
+  // Si la pieza tapa el cilindro (ninguna generatriz visible), no se dibuja nada encima.
+  assert.equal(pictorialPolylines(helix, 1, [[[1e4, 1e4], [1e4 + 1, 1e4]]]).length, 0, 'rosca tapada: sin filetes');
+  // En las vistas ortogonales no cambia nada.
+  assert.ok(isoOf([1, -1, 1]).drawn.viewModels.find((v) => v.kind === 'front').threadMarks.every((m) => m.mode !== 'pictorial'));
+}
 console.log('thread OK');
 
 // rosca real a lo largo de TODO el cuerpo (antes se daba por fallida) y tope de vueltas

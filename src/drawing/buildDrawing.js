@@ -55,7 +55,7 @@ export function buildDrawing(rep, fullShape, part, { mass: massOverride = null, 
     `Ø rodillo ${fmtNote(geo.d1)} · ancho interior ${fmtNote(geo.b1)} · Ø asiento ${fmtNote(geo.seatDiameter)} · ancho de diente ${fmtNote(geo.tooth)}`,
   ]);
   if (sprocketNotes.length) drawing.notes = [...sprocketNotes, ...(drawing.notes ?? [])];
-  const info = { sprockets3d, circles: extractCircles(shape), holes: extractHoles(shape, rep), revolve: analyzeRevolve(shape), threads3d: threadFeatureSpecs(part, evaluateParams(part.params).values), gears3d: gearFeatureSpecs(part, evaluateParams(part.params).values) };
+  const info = { sprockets3d, circles: extractCircles(shape), holes: extractHoles(shape, rep), revolve: analyzeRevolve(shape), threads3d: threadFeatureSpecs(part, evaluateParams(part.params).values), gears3d: gearFeatureSpecs(part, evaluateParams(part.params).values), threadHoles: threadSpecs(part) };
   const [bmin, bmax] = shape.boundingBox.bounds;
   const axisIndex = { x: 0, y: 1, z: 2 };
   const resolve = (config) => {
