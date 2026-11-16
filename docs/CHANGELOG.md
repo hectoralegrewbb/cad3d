@@ -1,3 +1,15 @@
+## 2026-11-16 — Entrada de aire, preparación y reinicio de presión
+
+Alcance aprobado: correcciones puntuales en `particles` y su estado en `ui`; se conservan formatos y firmas existentes.
+
+- Las entradas por caudal y presión seleccionan la sección del plano conectada al centro de la toma, usando las membranas/caras del solver a ambos lados. El margen de una celda cubre caras parciales sin imponer velocidad o presión al aire exterior separado por la pared. El caudal se normaliza después del recorte.
+- Si el centro de la boca cae sobre un sólido cerrado (eje de un tornillo sin fin, núcleo de un conducto anular), la entrada toma la corona de aire que lo rodea: las caras de adentro del sólido no cuentan como entrada y la selección parte del anillo de caras abiertas más cercano, dentro del radio nominal.
+- La preparación conserva su motivo: pendiente, convergencia, estancamiento o límite de iteraciones. El panel advierte que las lecturas son provisionales si no hubo convergencia y propone revisar entrada, geometría y resolución antes de reiniciar. Se mantiene la continuación de la corrida existente.
+- Reiniciar borra el primer disparo de los presostatos, sus flancos, filtros y lecturas. El primer frame del reinicio no presenta presiones de la corrida anterior.
+- Pruebas: entradas en X/Y/Z y ambos sentidos, conservación del caudal, plenum sin presión exterior, motivos de finalización y limpieza del presostato. Se mantienen las pruebas físicas de aire, transporte y sensores.
+- Pendiente: `readBox` integra toda la caja, incluido el aire exterior que ésta abarque; una caja mayor que el tubo no garantiza caudal exclusivo del conducto. Las tomas puntuales nuevas evitan esa mezcla en la lectura de presión.
+- Límite: una entrada colocada fuera de la tubería sigue representando un soplado exterior. Esta corrección no recoloca automáticamente las fuentes ni modifica los proyectos del usuario. La resolución y la contrapresión de la instalación siguen requiriendo verificación.
+
 ## 0.4.0 — 2026-11-12 — Control de movimiento y corrección de cuelgue con roscas
 
 - Corrección: la app se colgaba al extruir o colocar una rosca con «Filete real». El filete helicoidal (barrido + booleana) se recalculaba en el worker del kernel en cada edición y no se podía cancelar. Ahora cada edición se reconstruye con un filete cosmético (instantáneo) y, tras 900 ms sin tocar nada, se calcula el filete real; si llega una edición mientras ese cálculo lleva más de 1,2 s, se reinicia el kernel. Exportar STL/3MF/STEP/DXF fuerza el filete real. (No se logró reproducir un cuelgue infinito fuera del navegador: la corrección ataca la causa identificada.)

@@ -169,6 +169,13 @@ Volumen suelto equivalente ${fmt(fill.remainingLiters)} L · cavidad estimada ${
     const lines = [...rotors];
     if (!air.ready) lines.push(`Calculando el aire… ${Math.round(air.progress * 100)} % (${fmt(air.cellMm, 1)} mm por celda, ${fmt(air.stepMs)} ms por paso). Los granos empiezan a caer cuando termina.`);
     else lines.push(`Aire: ${Math.round(air.cells / 1000)}k celdas de ${fmt(air.cellMm, 1)} mm · entra ${fmt(air.inletFlow)} m³/h · ${fmt(air.stepMs)} ms por paso`);
+    const initial = air.initialSolve;
+    if (air.ready && initial?.status === 'converged') lines.push(`Convergencia alcanzada en la preparación (${initial.steps} pasos).`);
+    if (air.ready && (initial?.status === 'stalled' || initial?.status === 'limit')) {
+      const reason = initial.status === 'stalled' ? 'el cambio del campo dejó de mejorar' : 'se alcanzó el límite de iteraciones';
+      const delta = Number.isFinite(initial.residual) ? ` · Δ inicial ${initial.residual.toExponential(2)}` : '';
+      lines.push(`⚠ Sin convergencia: ${reason} (${initial.steps} pasos${delta}). Lecturas provisionales. Revisá la posición de entrada, la geometría y la resolución; después reiniciá.`);
+    }
     const sensors = Object.fromEntries((this.hooks.getInfo().sensors ?? []).map((sensor) => [sensor.id, sensor]));
     const names = Object.fromEntries(Object.values(sensors).map((sensor) => [sensor.id, sensor.name || sensor.id]));
     Object.entries(air.readings ?? {}).forEach(([id, r]) => lines.push(r.kind === 'presion' ? pressureLine(names[id] ?? id, r, sensors[id]) :`${names[id] ?? id}: p = ${fmt(r.pressure)} Pa · v = ${fmt(r.speed, 1)} m/s · Q = ${fmt(Math.abs(r.flow))} m³/h`));
@@ -177,7 +184,7 @@ Volumen suelto equivalente ${fmt(fill.remainingLiters)} L · cavidad estimada ${
       const how = mon.bc === 'caudal' ? `la presión de entrada subió ×${fmt(mon.ratio, 1)} sobre la línea limpia` : `el caudal cayó a ${fmt(100 / mon.ratio)} % del de la línea limpia`;
       lines.push(`${mon.state === 'taponada' ? '🛑 LÍNEA TAPONADA' : '⚠ Posible taponamiento'}: ${how}`);
     });
-    if(Number.isFinite(air.residual))lines.push(`Convergencia Δ ${air.residual.toExponential(2)} · PCG ${air.pcg??'—'}`);
+    if(Number.isFinite(air.residual))lines.push(`Cambio del campo Δ ${air.residual.toExponential(2)} · PCG ${air.pcg??'—'}`);
     if (air.message) lines.push(`⚠ ${air.message}`);
     return lines.join('\n');
   }

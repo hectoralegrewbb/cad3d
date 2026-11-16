@@ -447,9 +447,93 @@ export class AirSolver {
     this.deltaLog.length = 0;
   }
 
+  // Sección de entrada conectada al centro en el plano del disco. El margen radial permite cubrir las caras de pared
+  // parciales, pero no debe alcanzar otro conducto ni el aire exterior. Se comprueba la conectividad transversal a ambos
+  // lados del plano contra las mismas membranas/caras que usa el solver, sin depender del espesor de la chapa.
+  inletSection(faces, axis, pos, radius) {
+    if (!faces.length) return faces;
+    const others = [0, 1, 2].filter(a => a !== axis);
+    const [nx, ny] = this.dims;
+    const key = ijk => ijk[others[0]] + this.dims[others[0]] * ijk[others[1]];
+    const candidates = new Map(faces.map(item => [key(item.ijk), item]));
+    const distance = item => others.reduce((sum, a) => sum + (this.origin[a] + (item.ijk[a] + 0.5) * this.hmm - pos[a]) ** 2, 0);
+    const seed = faces.reduce((best, item) => distance(item) < distance(best) ? item : best);
+    // El centro puede caer sobre un sólido (eje de un tornillo sin fin, núcleo de un conducto anular): se parte de la cara
+    // abierta más cercana, siempre que esté dentro del radio nominal de la boca; más lejos sería desplazar la entrada a otro hueco.
+    if (distance(seed) > Math.max(radius * radius, this.hmm * this.hmm * 0.5) + 1e-8) return [];
+    const passage = (from, to, transverse) => {
+      for (const side of [-1, 0]) {
+        const at = from.slice();
+        at[axis] += side;
+        if (at[axis] < 0 || at[axis] >= this.dims[axis]) continue;
+        at[transverse] = Math.max(from[transverse], to[transverse]);
+        const [i, j, k] = at;
+        const weight = transverse === 0 ? this.au[i + (nx + 1) * (j + ny * k)]
+          : transverse === 1 ? this.av[i + nx * (j + (ny + 1) * k)]
+          : this.aw[i + nx * (j + ny * k)];
+        if (!(weight > 0)) return false;
+      }
+      return true;
+    };
+    // Centro libre: una sola semilla. Centro tapado: el anillo de caras abiertas más cercano, para tomar toda la corona
+    // aunque la grilla no la deje conectada en el plano (corona de una o dos celdas de ancho).
+    const centred = distance(seed) <= this.hmm * this.hmm * 0.5 + 1e-8;
+    const ring = (Math.sqrt(distance(seed)) + 0.75 * this.hmm) ** 2;
+    const section = centred ? [seed] : faces.filter(item => distance(item) <= ring);
+    const seen = new Set(section.map(item => item.face));
+    for (let head = 0; head < section.length; head += 1) {
+      const current = section[head];
+      for (const a of others) for (const sign of [-1, 1]) {
+        const at = current.ijk.slice();
+        at[a] += sign;
+        if (at[a] < 0 || at[a] >= this.dims[a]) continue;
+        const next = candidates.get(key(at));
+        if (!next || seen.has(next.face) || !passage(current.ijk, next.ijk, a)) continue;
+        seen.add(next.face);
+        section.push(next);
+      }
+    }
+    return section;
+  }
+
+  // Celdas de aire «vivo»: las que llegan a un borde abierto del dominio por caras abiertas, sin contar entradas ni plenums.
+  // El interior de un sólido cerrado (eje de un tornillo, núcleo macizo) queda afuera: sus celdas existen pero están selladas.
+  openAirCells() {
+    const [nx, ny, nz] = this.dims;
+    const { au, av, aw } = this;
+    const mx = nx + 1;
+    const my = ny + 1;
+    const nxy = nx * ny;
+    const seen = new Uint8Array(this.n);
+    const queue = new Int32Array(this.n);
+    let tail = 0;
+    const push = (c) => { if (!seen[c]) { seen[c] = 1; queue[tail] = c; tail += 1; } };
+    for (let k = 0; k < nz; k += 1) for (let j = 0; j < ny; j += 1) for (let i = 0; i < nx; i += 1) {
+      if (i > 0 && i < nx - 1 && j > 0 && j < ny - 1 && k > 0 && k < nz - 1) continue;
+      const c = i + nx * (j + ny * k);
+      if ((i === 0 && au[mx * (j + ny * k)] > 0) || (i === nx - 1 && au[nx + mx * (j + ny * k)] > 0)
+        || (j === 0 && av[i + nx * my * k] > 0) || (j === ny - 1 && av[i + nx * (ny + my * k)] > 0)
+        || (k === 0 && aw[i + nx * j] > 0) || (k === nz - 1 && aw[i + nx * (j + ny * nz)] > 0)) push(c);
+    }
+    for (let head = 0; head < tail; head += 1) {
+      const c = queue[head];
+      const i = c % nx;
+      const j = Math.floor(c / nx) % ny;
+      const k = Math.floor(c / nxy);
+      if (i > 0 && au[i + mx * (j + ny * k)] > 0) push(c - 1);
+      if (i < nx - 1 && au[i + 1 + mx * (j + ny * k)] > 0) push(c + 1);
+      if (j > 0 && av[i + nx * (j + my * k)] > 0) push(c - nx);
+      if (j < ny - 1 && av[i + nx * (j + 1 + my * k)] > 0) push(c + nx);
+      if (k > 0 && aw[i + nx * (j + ny * k)] > 0) push(c - nxy);
+      if (k < nz - 1 && aw[i + nx * (j + ny * (k + 1))] > 0) push(c + nxy);
+    }
+    return seen;
+  }
+
   applyInlets() {
     const [nx, ny, nz] = this.dims;
     const { hmm, origin } = this;
+    const openAir = this.inlets.length ? this.openAirCells() : null;
     this.warnings = [];
     this.uRef = 1;
     this.inletFaces = [];
@@ -463,14 +547,13 @@ export class AirSolver {
       const planeIndex = Math.min(faceMax, Math.max(1, plane));
       const arrays = [[this.au, this.bu, this.qu, nx + 1, ny, nz], [this.av, this.bv, this.qv, nx, ny + 1, nz], [this.aw, this.bw, this.qw, nx, ny, nz + 1]][axis];
       const [weights, types, values, sx, sy] = arrays;
-      const faces = [];
-      let area = 0;
+      const candidates = [];
       const lim = [this.dims[others[0]], this.dims[others[1]]];
       for (let b = 0; b < lim[1]; b += 1) {
         for (let a = 0; a < lim[0]; a += 1) {
           const ca = origin[others[0]] + (a + 0.5) * hmm - inlet.pos[others[0]];
           const cb = origin[others[1]] + (b + 0.5) * hmm - inlet.pos[others[1]];
-          const reach = inlet.radius + hmm; // una celda de margen: si no, las caras parciales de la pared dejan un anillo por donde el aire recircula
+          const reach = inlet.radius + hmm; // cubrir caras parciales; inletSection excluye el exterior al otro lado de la pared
           if (ca * ca + cb * cb > reach * reach) continue;
           const ijk = [0, 0, 0];
           ijk[axis] = planeIndex;
@@ -478,10 +561,14 @@ export class AirSolver {
           ijk[others[1]] = b;
           const face = ijk[0] + sx * (ijk[1] + sy * ijk[2]);
           if (weights[face] <= 0) continue;
-          faces.push({ face, ijk });
-          area += weights[face] * this.h * this.h;
+          // la cara debe dar a aire vivo por alguno de sus dos lados: las de adentro de un sólido cerrado no son entrada
+          const after = this.cellIndex(ijk[0], ijk[1], ijk[2]); // planeIndex ∈ [1, n−1]: las dos celdas vecinas existen
+          if (!openAir[after] && !openAir[after - [1, nx, nx * ny][axis]]) continue;
+          candidates.push({ face, ijk });
         }
       }
+      const faces = this.inletSection(candidates, axis, inlet.pos, inlet.radius);
+      const area = faces.reduce((sum, item) => sum + weights[item.face] * this.h * this.h, 0);
       if (!faces.length) {
         this.warnings.push(`Entrada ${index + 1}: la boca no toca aire (revisá posición y radio)`);
         return;

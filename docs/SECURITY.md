@@ -1,5 +1,9 @@
 # Seguridad y ciclo de vida de datos
 
+## Estado de preparación del aire — 2026-11-16
+
+`ParticleSim.initialAirSolve` guarda motivo, iteraciones y cambio residual de la preparación en memoria del worker. `airInfo().initialSolve` envía una copia al panel; se reemplaza al reconstruir/preparar el aire y se libera al destruir el simulador. No se agrega al formato del proyecto ni a IndexedDB. Las lecturas, filtros y disparos de presión se eliminan al reiniciar. No se cambia autenticación, almacenamiento ni acceso a red.
+
 La aplicación sigue siendo local. No se agregó autenticación, nube ni envío de proyectos a servicios externos.
 
 ## Fronteras
