@@ -1,3 +1,12 @@
+# ElCad 3D 0.5.0 — fabricación y medición
+
+- **DXF láser** abre selección de pieza y cara, vista previa 2D y lote ZIP con DXF separados y cantidades. R2000 o R12, 1:1 en mm, arcos/círculos conservados. Kerf en CAM. Perfiles complejos requieren revisión; no se desarrolla chapa automáticamente.
+- **Engranaje**: juego por rueda, coeficientes de cabeza/pie, medición teórica por diámetro y salto de dientes; referencias en el modelo.
+- **Esfera**: operación paramétrica de diámetro y centro XYZ, agregar/cortar; mover, deshacer, guardar y exportar.
+- **Herramientas CAD**: ángulo de 3 puntos/aristas y separación mínima entre caras/aristas.
+
+Ejecución local: `npm start`. Pruebas: `npm test`. Publicación existente: GitHub Pages desde el repositorio; no se agrega backend ni se cambia el almacenamiento local.
+
 # Actualización 0.3.0 — carga dinámica y herramientas CAD
 
 Ejecutar `npm start`. El llenado se reemplazó por partículas dinámicas en todo el volumen; no hay reservorio visual ni emisión artificial durante el vaciado.

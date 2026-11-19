@@ -31,7 +31,7 @@ export function validatePart(part) {
     ids.add(f.id);
   });
   part.features.forEach((f) => {
-    if (!['sketch','extrude','revolve','hole','thread','gear','screw','pipe','frame','pattern','mesh','fillet','chamfer','step','loft','sweep','shell'].includes(f.type)) fail('tipo de operación no compatible');
+    if (!['sketch','extrude','revolve','hole','thread','gear','screw','pipe','frame','pattern','mesh','fillet','chamfer','step','loft','sweep','sphere','shell'].includes(f.type)) fail('tipo de operación no compatible');
     for (const key of ['sketch', 'source', 'endSketch', 'pathSketch', ...(f.type==='pipe'?['from']:[])]) if (f[key] && !ids.has(f[key])) fail(`referencia inexistente en ${f.id}`);
     if (f.type === 'sketch') {
       if(!Array.isArray(f.entities)||f.entities.length>100000)fail('entidades de boceto');

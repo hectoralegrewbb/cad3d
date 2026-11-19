@@ -46,13 +46,11 @@ function asCircle(vertices) {
   if (vertices.length < 2 || vertices.some((v) => !v.bulge)) return null;
   const sweep = vertices.reduce((sum, v) => sum + Math.abs(4 * Math.atan(v.bulge)), 0);
   if (Math.abs(sweep - TAU) > 1e-3) return null;
-  const arcs = vertices.map((p, i) => {
-    const q = vertices[(i + 1) % vertices.length];
-    const chord = Math.hypot(q.x - p.x, q.y - p.y);
-    const half = Math.abs(2 * Math.atan(p.bulge));
-    return { chord, r: chord / (2 * Math.sin(half / 2)) };
+  const arcs=vertices.map((p,i)=>{
+    const q=vertices[(i+1)%vertices.length],dx=q.x-p.x,dy=q.y-p.y,chord=Math.hypot(dx,dy),offset=chord*(1-p.bulge*p.bulge)/(4*p.bulge);
+    return {x:(p.x+q.x)/2-dy/chord*offset,y:(p.y+q.y)/2+dx/chord*offset,r:chord/(2*Math.sin(Math.abs(2*Math.atan(p.bulge))))};
   });
-  return arcs.every((a) => Math.abs(a.r - arcs[0].r) < TOL) ? { r: arcs[0].r, vertices } : null;
+  return arcs.every(a=>Math.hypot(a.x-arcs[0].x,a.y-arcs[0].y)<TOL&&Math.abs(a.r-arcs[0].r)<TOL)?arcs[0]:null;
 }
 
 function sampleBounds(vertices) {
@@ -68,15 +66,16 @@ function sampleBounds(vertices) {
     const offset = (chord / 2) * ((1 - p.bulge ** 2) / (2 * p.bulge));
     const c = [(p.x + q.x) / 2 - ((q.y - p.y) / chord) * offset, (p.y + q.y) / 2 + ((q.x - p.x) / chord) * offset];
     const a0 = Math.atan2(p.y - c[1], p.x - c[0]);
-    for (let k = 1; k < 24; k += 1) {
-      xs.push(c[0] + radius * Math.cos(a0 + (theta * k) / 24));
-      ys.push(c[1] + radius * Math.sin(a0 + (theta * k) / 24));
+    for(const angle of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+      const delta=theta>0?((angle-a0)%TAU+TAU)%TAU:((a0-angle)%TAU+TAU)%TAU;
+      if(delta<=Math.abs(theta)+1e-10){xs.push(c[0]+radius*Math.cos(angle));ys.push(c[1]+radius*Math.sin(angle));}
     }
   });
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
 export function loopsToLaserEntities({ frame, loops }, { layer = 'CORTE' } = {}) {
+  if(!loops?.length||!frame?.origin||!frame.u||!frame.v)throw new Error('No hay contornos de fabricación válidos.');
   const { origin, u, v } = frame;
   const to2 = (p) => {
     const d = [p[0] - origin[0], p[1] - origin[1], p[2] - origin[2]];
@@ -98,10 +97,7 @@ export function loopsToLaserEntities({ frame, loops }, { layer = 'CORTE' } = {})
     });
     const vertices = chainLoop(segments);
     const circle = asCircle(vertices);
-    if (circle) {
-      const c = circleOf([vertices[0].x, vertices[0].y], segments.find((s) => s.m)?.m ?? [vertices[0].x, vertices[0].y], [vertices[1].x, vertices[1].y]);
-      return { outer: loop.outer, circle: c, bounds: { minX: c.x - c.r, maxX: c.x + c.r, minY: c.y - c.r, maxY: c.y + c.r } };
-    }
+    if (circle) return {outer:loop.outer,circle,bounds:{minX:circle.x-circle.r,maxX:circle.x+circle.r,minY:circle.y-circle.r,maxY:circle.y+circle.r}};
     return { outer: loop.outer, vertices, bounds: sampleBounds(vertices) };
   });
   const outer = prepared.find((loop) => loop.outer) ?? prepared[0];
@@ -109,9 +105,22 @@ export function loopsToLaserEntities({ frame, loops }, { layer = 'CORTE' } = {})
   const shift = (x, y) => ({ x: round(x - minX), y: round(y - minY) });
   const circles = [];
   const polylines = [];
+  const order=[];
   [...prepared.filter((loop) => !loop.outer), outer].forEach((loop) => {
-    if (loop.circle) circles.push({ layer, ...shift(loop.circle.x, loop.circle.y), r: round(loop.circle.r) });
-    else polylines.push({ layer, closed: true, vertices: loop.vertices.map((p) => ({ ...shift(p.x, p.y), bulge: p.bulge })) });
+    if (loop.circle){order.push({type:'circle',index:circles.length});circles.push({ layer, ...shift(loop.circle.x, loop.circle.y), r: round(loop.circle.r) });}
+    else {order.push({type:'polyline',index:polylines.length});polylines.push({ layer, closed: true, vertices: loop.vertices.map((p) => ({ ...shift(p.x, p.y), bulge: p.bulge })) });}
   });
-  return { circles, polylines, width: round(maxX - minX, 3), height: round(maxY - minY, 3), holes: prepared.length - 1 };
+  return { circles, polylines, order, origin2D:[minX,minY], width: round(maxX - minX, 3), height: round(maxY - minY, 3), holes: prepared.length - 1 };
+}
+
+export function validateLaserEntities({circles=[],polylines=[]}){
+  if(!circles.length&&!polylines.length)throw new Error('No hay contornos para exportar.');
+  const finite=value=>typeof value==='number'&&Number.isFinite(value)&&Math.abs(value)<=1e8;
+  const circleKeys=new Set();for(const c of circles){if(![c.x,c.y,c.r].every(finite)||c.r<=0)throw new Error('Círculo de fabricación inválido.');const key=[c.x,c.y,c.r].map(v=>v.toFixed(4)).join(':');if(circleKeys.has(key))throw new Error('Círculos de corte duplicados.');circleKeys.add(key);}
+  const edges=new Set();
+  for(const poly of polylines){if(!poly.closed||poly.vertices.length<2)throw new Error('El contorno debe estar cerrado.');for(let i=0;i<poly.vertices.length;i++){
+    const p=poly.vertices[i],q=poly.vertices[(i+1)%poly.vertices.length];if(![p.x,p.y,p.bulge??0].every(finite)||Math.hypot(p.x-q.x,p.y-q.y)<1e-5)throw new Error('Contorno con segmento degenerado o coordenadas inválidas.');
+    const a=`${p.x},${p.y}`,b=`${q.x},${q.y}`,key=a<b?`${a}|${b}|${p.bulge??0}`:`${b}|${a}|${-(p.bulge??0)}`;if(edges.has(key))throw new Error('Hay segmentos duplicados en el corte.');edges.add(key);
+  }}
+  return true;
 }

@@ -1,3 +1,5 @@
+import {openLaserPanel} from '../ui/laserPanel.js';
+import {zipStore} from '../kernel/threeMf.js';
 import {alignedPlacement} from '../core/alignment.js';
 import { particleConfig } from '../core/particleConfig.js';
 import { solveAssemblyMates } from '../core/assemblyMates.js';
@@ -42,10 +44,10 @@ import { primitivesToDxf } from '../drawing/dxfWriter.js';
 import { assemblyViews } from '../drawing/assemblyDrawing.js';
 import { assemblyTrain, geared, projectGears, stackOn } from '../kernel/assemblyBuilder.js';
 import { engageMoves, findLinks, linkLabels, solveTrain, turnedPose } from '../core/kinematics.js';
-import { gearFeatureSpecs } from '../kernel/gearGeometry.js';
+import { gearFeatureSpecs, gearToothMeasure } from '../kernel/gearGeometry.js';
 import { addGearMate } from '../core/gearPair.js';
 import { addSprocketPair } from '../core/sprocket.js';
-import { laserEntitiesToDxf } from '../io/laserDxf.js';
+import { laserEntitiesToDxf, bulgeArc } from '../io/laserDxf.js';
 import { loopsToLaserEntities } from '../core/laserOutline.js';
 import * as projects from '../core/projectModel.js';
 import { ProjectPanel } from '../ui/projectPanel.js';
@@ -101,6 +103,7 @@ workbench = createWorkbench(viewer, {
   errors: () => scope==='asm'?(lastAssembly?.errors??[]):Object.entries(lastBuild?.results??{}).filter(([,r])=>r.status==='error').map(([id,r])=>({id,error:r.error})),
   selectError: error => {if(error.partId&&error.partId!==project.activePartId)activatePart(error.partId);else if(scope==='asm')setScope('part');select(error.id);},
   entity: hit => kernel.request('inspectEntity',hit),
+  entityDistance:(first,second)=>kernel.request('measureEntities',{first,second}),
   section: (itemId,axis,position,approximate) => approximate?geometryJob('section',{mesh:viewer.itemGeometry(itemId),axis,position}):kernel.request('sectionGeometry',{itemId,axis,position}),
   prepareAlignment: async (moving,target,options) => {
     if(scope!=='asm')throw new Error('Pasá a Conjunto para alinear instancias.');
@@ -132,7 +135,7 @@ workbench = createWorkbench(viewer, {
 });
 
 // Operaciones que agregan material (las que pueden girar solas): extrusión/revolución en modo agregar y engranajes.
-const motorFeatures = () => store.state.features.filter((feature) => !feature.suppressed && ((feature.type === 'extrude' || feature.type === 'revolve') ? (feature.mode ?? 'add') !== 'cut' : (feature.type === 'gear' || feature.type === 'screw' || feature.type === 'pipe' || feature.type === 'mesh' || feature.type === 'frame' || ['step','loft','sweep'].includes(feature.type))));
+const motorFeatures = () => store.state.features.filter((feature) => !feature.suppressed && ((feature.type === 'extrude' || feature.type === 'revolve' || feature.type === 'sphere') ? (feature.mode ?? 'add') !== 'cut' : (feature.type === 'gear' || feature.type === 'screw' || feature.type === 'pipe' || feature.type === 'mesh' || feature.type === 'frame' || ['step','loft','sweep'].includes(feature.type))));
 let motorSplit = []; // ids de operaciones que giran; el resto de la pieza queda quieto
 // Físicas dentro de una pieza: cada operación Engranaje es un cuerpo (hace falta más de una).
 const partGearFeatures = () => store.state.features.filter((feature) => feature.type === 'gear' && !feature.suppressed);
@@ -276,7 +279,7 @@ byId('styleBtn').addEventListener('click', () => {
 viewer.renderMode = styleModes[styleIndex][0];
 byId('styleBtn').textContent = styleModes[styleIndex][1];
 byId('styleBtn').classList.toggle('active', styleIndex > 0);
-const movableFeatures = () => store.state.features.filter((feature) => !feature.suppressed && ['extrude', 'revolve', 'gear', 'screw', 'pipe', 'mesh', 'frame', 'step', 'loft', 'sweep'].includes(feature.type));
+const movableFeatures = () => store.state.features.filter((feature) => !feature.suppressed && ['extrude', 'revolve', 'gear', 'screw', 'pipe', 'mesh', 'frame', 'step', 'loft', 'sweep', 'sphere'].includes(feature.type));
 const instanceLabel = (instance, index) => `${project.parts.find((item) => item.id === instance.partId)?.part.meta.name ?? 'Pieza'} #${index + 1}`;
 const fmt = (value) => String(Math.round(value * 100) / 100).replace('.', ',');
 // Empuja instancias del conjunto; con `stopOnHit` se frena al chocar con otra pieza (ver safeTravel).
@@ -842,6 +845,15 @@ const paramsPanel = new ParamsPanel(byId('paramsPanel'), {
 const props = new PropertiesPanel(byId('props'), {
   onUpdate: (id, patch) => apply((state) => commands.updateFeature(state, id, patch)),
   onRefresh: () => renderPanels(),
+  onGearMeasure:(id,options)=>{
+    if(!id)return viewer.clearGuides();
+    try{const spec=gearFeatureSpecs(store.state,lastBuild?.params??{}).find(s=>s.id===id);if(!spec)throw new Error('Engranaje no válido.');const measured=gearToothMeasure(spec,options),x=spec.xDir,n=spec.vector,y=[n[1]*x[2]-n[2]*x[1],n[2]*x[0]-n[0]*x[2],n[0]*x[1]-n[1]*x[0]];
+      const point=(r,a)=>spec.center.map((v,k)=>v+r*(x[k]*Math.cos(a)+y[k]*Math.sin(a))),lines=[];
+      for(const [r,color] of [[spec.rp,0xffd25d],[spec.rb,0x72a9ed],[spec.ra,0x8fe3ad],[spec.rf,0xe99bc4]])lines.push({points:Array.from({length:129},(_,i)=>point(r,i/128*Math.PI*2)),color,dashed:true});
+      const radius=measured.diameter/2,half=spec.flankAngle(radius),a=point(radius,-half),b=point(radius,half);lines.push({points:[a,b],color:0xffffff});
+      stopParticles();stopPreview();viewer.showGuides({lines,labels:[{p:b,text:`Espesor teórico: cuerda ${measured.toothChord.toFixed(3)} mm / arco ${measured.toothArc.toFixed(3)} mm`}]});
+    }catch(error){setStatus(error.message,true);}
+  },
   onAddSprocketPair: (toothId, opts) => {
     try {
       let made = null;
@@ -1605,20 +1617,30 @@ async function exportModel(kind) {
 }
 // DXF 1:1 para cortadora láser: la cara plana más grande de la pieza REAL (contorno, agujeros, chaflanes/redondeos de boceto, cortes).
 async function exportLaser(format = 'r2000') {
-  setStatus('Preparando DXF para láser…');
-  try {
-    if (scope === 'asm') throw new Error('El DXF para láser sale de una pieza: pasá a Pieza.');
-    if (lastBuildDraft || !lastBuiltPart || lastBuiltPart.features !== store.state.features || lastBuiltPart.params !== store.state.params) await rebuild({ full: true });
-    if (!lastBuild?.hasShape) throw new Error('No hay geometría válida para exportar');
-    const data = await kernel.request('laserOutline', {});
-    if (isSuperseded(data)) return;
-    const laser = loopsToLaserEntities(data);
-    downloadBlob(new Blob([laserEntitiesToDxf(laser, { format })], { type: 'application/dxf' }), `${exportName()}-laser${format === 'r12' ? '-r12' : ''}.dxf`);
-    setStatus(`DXF para láser (1:1): ${laser.width} × ${laser.height} mm · ${laser.holes} agujero${laser.holes === 1 ? '' : 's'} interior${laser.holes === 1 ? '' : 'es'} · cara más grande de la pieza`);
-  } catch (error) {
-    setStatus(error.message, true);
-  }
+  setStatus('Preparando fabricación…');
+  try{
+    closeScenePanels();stopPreview();stopPick();syncActive();
+    if(scope==='part'&&(lastBuildDraft||!lastBuiltPart||lastBuiltPart.features!==store.state.features||lastBuiltPart.params!==store.state.params))await rebuild({full:true});
+    const snapshot=JSON.stringify(projectSnapshot()),source=structuredClone(projectSnapshot());
+    const fresh=()=>{if(snapshot!==JSON.stringify(projectSnapshot()))throw new Error('El proyecto cambió: cerrá y volvé a preparar el corte.');};
+    await openLaserPanel({activeId:source.activePartId,
+      parts:()=>source.parts.map(entry=>({id:entry.id,name:entry.part.meta.name,quantity:Math.max(1,source.instances.filter(i=>i.partId===entry.id).length)})),
+      document:async(partId,faceIndex)=>{fresh();const entry=source.parts.find(p=>p.id===partId);if(!entry)throw new Error('Pieza inexistente.');const result=await kernel.request('laserDocument',{part:entry.part,faceIndex});fresh();if(isSuperseded(result))throw new Error('El cálculo fue reemplazado. Reintentá.');return result;},
+      faceIndex:async hit=>{fresh();if(scope!=='part'||hit.itemId!=='part')throw new Error('Pasá a Pieza y elegí una cara plana del sólido activo.');const faces=await kernel.request('laserFaces');const face=faces.find(f=>f.faceId===hit.faceId);if(!face)throw new Error('La cara no es plana o cambió.');return face.index;},
+      pickFace:done=>{setStatus('Elegí una cara plana; Escape vuelve al panel.');viewer.startPlacement(done);},cancelPick:()=>viewer.cancelPlacement(),
+      highlight:(partId,outline,geometry)=>{
+        if(!outline||scope!=='part'||partId!==source.activePartId)return viewer.clearGuides();
+        const {frame}=outline,shift=geometry.origin2D??[0,0],world=(x,y)=>frame.origin.map((v,k)=>v+(x+shift[0])*frame.u[k]+(y+shift[1])*frame.v[k]),lines=[];
+        for(const circle of geometry.circles)lines.push({points:Array.from({length:97},(_,i)=>world(circle.x+circle.r*Math.cos(i/96*Math.PI*2),circle.y+circle.r*Math.sin(i/96*Math.PI*2))),color:0x65edca});
+        for(const poly of geometry.polylines){const points=[];for(let i=0;i<poly.vertices.length;i++){const a=poly.vertices[i],b=poly.vertices[(i+1)%poly.vertices.length];points.push(world(a.x,a.y));if(a.bulge){const arc=bulgeArc(a,b,a.bulge),angle=Math.atan2(a.y-arc.center.y,a.x-arc.center.x),sweep=4*Math.atan(a.bulge);for(let j=1;j<24;j++)points.push(world(arc.center.x+arc.radius*Math.cos(angle+sweep*j/24),arc.center.y+arc.radius*Math.sin(angle+sweep*j/24)));}}points.push(points[0]);lines.push({points,color:0x65edca});}
+        viewer.showGuides({lines,labels:[]});
+      },
+      saveFile:(name,text)=>{fresh();downloadBlob(new Blob([text],{type:'application/dxf'}),name);},
+      saveBundle:files=>{fresh();downloadBlob(zipStore(files.map(file=>({name:file.name,data:new TextEncoder().encode(file.text)}))),'piezas-laser.zip');}
+    },{format});
+  }catch(error){setStatus(error.message,true);}
 }
+
 byId('stlBtn').addEventListener('click', () => exportModel('stl'));
 byId('dxfLaserBtn').addEventListener('click', () => exportLaser('r2000'));
 byId('dxfLaserR12Btn').addEventListener('click', () => exportLaser('r12'));

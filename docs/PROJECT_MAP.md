@@ -39,3 +39,18 @@ Las restricciones de boceto son dirigidas: A es referencia y B se ajusta. Las re
 | `particles/hopperLoad.js` | HopperLoad: seed, track, info | ParticleSim |
 
 Los métodos de reservorio visual se sustituyeron dentro del alcance aprobado. Se mantienen nombres y firmas de los puntos de entrada existentes de app/worker/visor; las capacidades nuevas se agregan mediante hooks y mensajes.
+
+
+## APIs 0.5.0
+
+| Módulo/archivo | Exporta | Consume |
+|---|---|---|
+| kernel/sphereGeometry.js | defaultSphereFeature, sphereSpec | expression |
+| kernel/gearGeometry.js | gearToothMeasure (adicional) | gearSpec existente |
+| kernel/kernelService.js | laserFaces, laserDocument, measureEntities (pedidos adicionales) | geometría, construcción y DistanceTool |
+| kernel/laserOutline.js | planarFaces; planarFaceLoops compatible | formas B-Rep |
+| core/laserOutline.js | validateLaserEntities y orden de contornos | geometría plana clonable |
+| core/measurement.js | pointAngle, directionAngle | vectores puros |
+| ui/laserPanel.js | openLaserPanel | hooks de app, geometría plana y escritor DXF |
+
+El ZIP reutiliza `zipStore` público desde la composición de app. `laserDocument` construye una pieza temporal completa y la libera sin reemplazar el documento activo. Las caras de un documento exportado se seleccionan por índice mientras la firma del proyecto permanece igual.

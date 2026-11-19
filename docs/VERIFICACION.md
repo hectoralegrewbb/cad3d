@@ -70,3 +70,12 @@ Manual pendiente en navegador real:
 
 
 Integración reproducible del conjunto recibido: `node scripts/check-hopper-air.mjs`. Comprueba construcción sin errores, resolución inicial del aire, deposición porosa, coordenadas finitas y masa durante 0,5 s simulados. No verifica caudal experimental ni vaciado completo.
+
+
+## Casos 0.5.0
+
+Automáticos: `fabrication.test.mjs` (esfera, perfiles, medidas, DXF y rebajes), `fabricationPanel.test.mjs` (render de controles), `laserPanel.test.mjs` (descarga/lote y revisión), más suite existente.
+
+Navegador: crear esfera, cambiar diámetro/centro, mover, deshacer y guardar/reabrir; crear engranaje, editar juego/cabeza/pie y diámetro de medición; elegir cara de chapa y revisar SVG; descargar DXF/lote y comprobar CSV/exclusiones. Confirmar errores para esfera/STL sin B-Rep, rebaje, perfil degenerado y referencia antigua. Revisión 320/768/1024+ según disponibilidad de entorno.
+
+Despliegue: conservar `.nojekyll` y fuente GitHub Pages existente; comprobar ejecución `pages build and deployment`, marcador `elcad-version=0.5.0` y recursos de módulos/WASM en la URL publicada. No cambiar permisos ni audiencia.

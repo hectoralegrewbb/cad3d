@@ -1,3 +1,4 @@
+import {pointAngle,directionAngle} from '../core/measurement.js';
 import {el,button,selectInput,field,textInput} from './dom.js';
 import {sectionDxf} from '../core/inspection.js';
 import {downloadBlob} from '../io/persistence.js';
@@ -6,6 +7,7 @@ import {downloadBlob} from '../io/persistence.js';
 export function createCadTools(viewer,hooks) {
   const root=el('details',{class:'cad-tools'},el('summary',{text:'Inspección y montaje CAD'}));
   const body=el('div',{class:'cad-tools-body'}),output=el('div',{class:'cad-results',role:'status','aria-live':'polite'});root.append(body,output);
+  let points=[];
   let selected='',mode='',first=null,preview=null,section=null,busy=false,sequence=0,down=null;
   const target=selectInput([['','Elegir pieza…']],'',v=>{cancel();selected=v;centerSection();});
   const axis=selectInput([[0,'X'],[1,'Y'],[2,'Z']],2,()=>{invalidateSection();centerSection();}),position=textInput('0',()=>invalidateSection());
@@ -15,7 +17,7 @@ export function createCadTools(viewer,hooks) {
   const message=(text,error=false)=>{output.replaceChildren(el('p',{class:error?'err-block':'hint-block',text}));};
   const cancelPreview=()=>{preview=null;viewer.clearPlacementPreview();apply.disabled=true;};
   function invalidateSection(){section=null;exportButton.disabled=true;viewer.clearGuides();}
-  function cancel(){sequence++;mode='';first=null;cancelPreview();invalidateSection();}
+  function cancel(){sequence++;mode='';first=null;points=[];cancelPreview();invalidateSection();}
   async function run(label,fn){if(busy)return;hooks.stopTools();cancelPreview();busy=true;const ticket=++sequence;mode='';first=null;for(const b of body.querySelectorAll('button'))b.disabled=true;message(label);
     try{await fn(()=>ticket===sequence);}catch(e){if(ticket===sequence)message(`${e.message} Corregí la selección y reintentá.`,true);}finally{busy=false;for(const b of body.querySelectorAll('button'))b.disabled=false;apply.disabled=!preview;exportButton.disabled=!section||section.area===null||section.open>0;}}
   const choose=()=>{if(!selected)throw new Error('Elegí una pieza de la lista.');return selected;};
@@ -42,19 +44,26 @@ export function createCadTools(viewer,hooks) {
   });
   const exportButton=button('Exportar sección DXF',()=>{try{downloadBlob(new Blob([sectionDxf(section)],{type:'application/dxf'}),'seccion.dxf');}catch(e){message(e.message,true);}});exportButton.disabled=true;
   body.append(el('div',{class:'row-wrap'},button('Sección B-Rep',()=>sectionRun(false)),button('Sección de malla',()=>sectionRun(true)),exportButton));
-  const start=m=>{cancel();hooks.stopTools();mode=m;message(m==='align'?'Tocá una cara plana o cilíndrica de la pieza móvil; luego la referencia fija.':m==='angle'?'Tocá dos caras planas o cilíndricas para medir el ángulo entre sus normales/ejes.':'Tocá una cara o una arista. Escape cancela.');};
-  body.append(el('b',{text:'Medición de entidades'}),el('div',{class:'row-wrap'},button('Medir cara',()=>start('face')),button('Medir arista',()=>start('edge')),button('Ángulo entre caras/ejes',()=>start('angle'))),
+  const start=m=>{cancel();hooks.stopTools();mode=m;message(m==='points'?'Tocá tres puntos: extremo, vértice del ángulo, extremo.':m==='lines'?'Tocá dos aristas rectas para medir el ángulo.':m.startsWith('distance')?'Tocá dos entidades para medir su separación mínima B-Rep.':m==='align'?'Tocá una cara plana o cilíndrica de la pieza móvil; luego la referencia fija.':m==='angle'?'Tocá dos caras planas o cilíndricas para medir el ángulo entre sus normales/ejes.':'Tocá una cara o una arista. Escape cancela.');};
+  body.append(el('b',{text:'Medición de entidades'}),el('div',{class:'row-wrap'},button('Medir cara',()=>start('face')),button('Medir arista',()=>start('edge')),button('Ángulo entre caras/ejes',()=>start('angle')),button('Ángulo con 3 puntos',()=>start('points')),button('Ángulo entre aristas',()=>start('lines')),button('Distancia entre aristas',()=>start('distanceEdges')),button('Distancia entre caras',()=>start('distanceFaces'))),
     el('b',{text:'Alinear / encastrar instancias'}),field('Separación axial (mm)',gap),field('Giro adicional sobre eje (°)',spin),button('Seleccionar referencias',()=>start('align')));
   const apply=button('Aplicar colocación',()=>{const pending=preview;return run('Aplicando colocación…',async()=>{if(!pending)throw new Error('Prepará una colocación primero.');await hooks.applyAlignment(pending);preview=null;message('Colocación aplicada. Podés deshacer.');});});apply.disabled=true;
   body.append(el('div',{class:'row-wrap'},apply,button('Cancelar herramienta',()=>{cancel();message('Herramienta cancelada.');})));
   viewer.canvas.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};});
   viewer.canvas.addEventListener('pointerup',e=>{
     if(!mode||busy||!down||e.button>0||Math.hypot(e.clientX-down.x,e.clientY-down.y)>4)return;down=null;
-    const active=mode,hit=active==='edge'?viewer.edgeAt(e):viewer.surfaceAt(e);if(!hit)return;
-    if((active==='align'||active==='angle')&&!first){first=hit;message('Referencia móvil seleccionada. Tocá la referencia fija.');return;}
+    const active=mode,hit=['edge','lines','distanceEdges'].includes(active)?viewer.edgeAt(e):viewer.surfaceAt(e);if(!hit)return;
+    if(active==='points'){points.push(hit.point);if(points.length<3){message(points.length===1?'Elegí el vértice del ángulo.':'Elegí el último extremo.');return;}try{const angle=pointAngle(...points);viewer.showGuides({lines:[{points}],labels:[{p:points[1],text:angle.toFixed(4)+'°'}]});message(`Ángulo entre puntos: ${angle.toFixed(4)}° (puntos sobre malla; precisión de selección).`);}catch(error){message(error.message,true);}points=[];mode='';return;}
+    if(['align','angle','lines','distanceEdges','distanceFaces'].includes(active)&&!first){first=hit;message('Referencia móvil seleccionada. Tocá la referencia fija.');return;}
     const source=first;const ticket=++sequence;busy=true;message('Consultando geometría B-Rep…');
     (async()=>{try{
-      if(active==='angle'){
+      if(active==='distanceEdges'||active==='distanceFaces'){
+        const ref=hit=>active==='distanceEdges'?{itemId:hit.itemId,edgeIndex:hit.index}:hit;const result=await hooks.entityDistance(ref(source),ref(hit));if(ticket!==sequence)return;message(`Separación mínima entre entidades: ${result.distance.toFixed(5)} mm (B-Rep).`);mode='';first=null;
+      }else if(active==='lines'){
+        const a=await hooks.entity({itemId:source.itemId,edgeIndex:source.index}),b=await hooks.entity({itemId:hit.itemId,edgeIndex:hit.index});if(ticket!==sequence)return;
+        if(a.type!=='LINE'||b.type!=='LINE')throw new Error('Elegí aristas rectas; una curva no tiene una dirección única.');
+        const angle=directionAngle(a.end.map((v,k)=>v-a.start[k]),b.end.map((v,k)=>v-b.start[k]));message(`Ángulo orientado de aristas: ${angle.toFixed(4)}° · menor ángulo ${Math.min(angle,180-angle).toFixed(4)}° (B-Rep).`);mode='';first=null;
+      }else if(active==='angle'){
         const a=await hooks.entity(source),b=await hooks.entity(hit);if(ticket!==sequence)return;
         if(!a.normal||!b.normal)throw new Error('Elegí caras planas o cilíndricas con una normal/eje definido.');
         const cosine=a.normal.reduce((sum,v,k)=>sum+v*b.normal[k],0)/Math.hypot(...a.normal)/Math.hypot(...b.normal);

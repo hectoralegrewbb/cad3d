@@ -1,7 +1,7 @@
 import { featureLabels } from '../core/partModel.js';
 import { button, el } from './dom.js';
 
-const icons = { step:'▣', shell:'⊔', loft:'◇', sweep:'↝', sketch: '✎', extrude: '⬆', revolve: '↻', hole: '◎', thread: '⌇', gear: '⚙', screw: '🌀', pattern: '⁂', mesh: '▦', frame: '⌗', pipe: '⌒', fillet: '◜', chamfer: '◿' };
+const icons = { sphere:'◉', step:'▣', shell:'⊔', loft:'◇', sweep:'↝', sketch: '✎', extrude: '⬆', revolve: '↻', hole: '◎', thread: '⌇', gear: '⚙', screw: '🌀', pattern: '⁂', mesh: '▦', frame: '⌗', pipe: '⌒', fillet: '◜', chamfer: '◿' };
 
 // Árbol de operaciones: orden = historial paramétrico.
 export class FeatureTree {

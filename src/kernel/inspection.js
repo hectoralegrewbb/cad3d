@@ -9,6 +9,7 @@ export function describeEntity(rep, shape, {faceId,edgeIndex}) {
     try{
       if(!Number.isInteger(edgeIndex)||!edges[edgeIndex])throw new Error('Arista fuera de rango. Volvé a seleccionarla.');
       const edge=edges[edgeIndex],result={kind:'edge',type:edge.geomType,length:edge.length};
+      if(edge.geomType==='LINE'){const start=edge.startPoint,end=edge.endPoint;try{result.start=[start.x,start.y,start.z];result.end=[end.x,end.y,end.z];result.normal=result.end.map((v,k)=>v-result.start[k]);result.origin=result.start;}finally{start.delete();end.delete();}}
       if(edge.geomType==='CIRCLE'){
         const a=new (rep.getOC().BRepAdaptor_Curve)(edge.wrapped);
         try{const circle=a.Circle();try{result.radius=circle.Radius();const point=circle.Location();result.origin=tuple(point);point.delete();const axis=circle.Axis(),d=axis.Direction();result.normal=tuple(d);d.delete();axis.delete();}finally{circle.delete();}}finally{a.delete();}
@@ -24,6 +25,9 @@ export function describeEntity(rep, shape, {faceId,edgeIndex}) {
     if(['CYLINDRE','CYLINDER'].includes(face.geomType)){
       const a=new (rep.getOC().BRepAdaptor_Surface)(face.wrapped,true);
       try{const c=a.Cylinder();try{result.radius=c.Radius();const axis=c.Axis(),p=axis.Location(),d=axis.Direction();result.origin=tuple(p);result.normal=tuple(d);p.delete();d.delete();axis.delete();}finally{c.delete();}}finally{a.delete();}
+    }
+    if(face.geomType==='SPHERE'){
+      const adaptor=new (rep.getOC().BRepAdaptor_Surface)(face.wrapped,true);try{const sphere=adaptor.Sphere();try{result.radius=sphere.Radius();}finally{sphere.delete();}}finally{adaptor.delete();}
     }
     return result;
   }finally{faces.forEach(f=>f.delete());}

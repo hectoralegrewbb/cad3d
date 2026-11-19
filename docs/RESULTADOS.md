@@ -1,3 +1,88 @@
+# Verificación vigente — 0.5.0 (2026-11-19)
+
+Base del repositorio: `991a3f97efd31c544bb7e675ea13dd82cd6d7b0d`. Node 24.22.3.
+
+**65/65 archivos de prueba aprobados en la ejecución final completa.** Sintaxis e importaciones locales comprobadas en 159 módulos, sin errores; `git diff --check` limpio. La primera ejecución detectó un cambio de texto en el error legacy de engranaje puntiagudo: se conservó la validación nueva y se restauró el mensaje esperado; la ejecución final pasa.
+
+Casos nuevos: volumen/corte/movimiento/guardado de esfera; espesor y hueco teóricos, juego por rueda; separación B-Rep conocida de 40 mm; perfil de chapa con agujero; rebaje detectado como no uniforme; exclusión de esfera sin cara plana; DXF R12/R2000 reimportados; elipse con discretización adaptativa; círculo dividido y orden interior/exterior; controles de medición, lote y revisión de sólidos complejos. El caso añadido de cara inclinada 20° conserva 80×40 mm y pasó con el código final.
+
+La revisión visual del sitio anterior al despliegue encontró WebGL deshabilitado en el navegador de revisión (`GL_VENDOR/GL_RENDERER = Disabled`); no se pudo verificar render 3D ni layout real en ese entorno. No es evidencia de un fallo del sitio para navegadores con WebGL. Los tests DOM verifican eventos y estados, no GPU o responsive. La validación 320/768/1024+ y la prueba en CAM/cortadora siguen pendientes.
+
+La extracción de una cara no desarrolla chapa. Volumen/área/espesor es un filtro de consistencia, no prueba suficiente de extrusión uniforme. Splines/elipses se aproximan adaptativamente con objetivo 0,02 mm; dentado conserva el muestreo de la geometría existente. Sin nesting ni kerf automático.
+
+```text
+PASS actions.test.mjs
+PASS advanced.test.mjs
+PASS airInlet.test.mjs
+PASS airParticles.test.mjs
+PASS airPreparation.test.mjs
+PASS airSlice.test.mjs
+PASS airSolver.test.mjs
+PASS airflow.test.mjs
+PASS batchMesh.test.mjs
+PASS belt.test.mjs
+PASS cadTools.test.mjs
+PASS corners.test.mjs
+PASS dimText.test.mjs
+PASS drag.test.mjs
+PASS drawing.test.mjs
+PASS dwgImport.test.mjs
+PASS dxfImport.test.mjs
+PASS fabrication.test.mjs
+PASS fabricationPanel.test.mjs
+PASS frame.test.mjs
+PASS frameGeometry.test.mjs
+PASS gear.test.mjs
+PASS gearPair.test.mjs
+PASS granular.test.mjs
+PASS hardening.test.mjs
+PASS holes.test.mjs
+PASS hopperFill.test.mjs
+PASS inspection.test.mjs
+PASS kernel.test.mjs
+PASS kernelService.test.mjs
+PASS kinematics.test.mjs
+PASS laserPanel.test.mjs
+PASS library.test.mjs
+PASS libraryScenes.test.mjs
+PASS massProps.test.mjs
+PASS meshOnly.test.mjs
+PASS meshSimplify.test.mjs
+PASS motion.test.mjs
+PASS motionControl.test.mjs
+PASS motors.test.mjs
+PASS move.test.mjs
+PASS moveSnap.test.mjs
+PASS particles.test.mjs
+PASS pcg.test.mjs
+PASS pressureSensor.test.mjs
+PASS products.test.mjs
+PASS recorder.test.mjs
+PASS reference.test.mjs
+PASS rigid.test.mjs
+PASS rotor.test.mjs
+PASS rotorDynamics.test.mjs
+PASS scene.test.mjs
+PASS screw.test.mjs
+PASS server.test.mjs
+PASS shapeOps.test.mjs
+PASS sketch.test.mjs
+PASS sketchDistance.test.mjs
+PASS sprocket.test.mjs
+PASS stlImport.test.mjs
+PASS thread.test.mjs
+PASS transmission.test.mjs
+PASS turn.test.mjs
+PASS viewerShared.test.mjs
+PASS views.test.mjs
+PASS weld.test.mjs
+RESULTADO: 65/65 archivos aprobados
+```
+
+---
+
+Histórico de entregas anteriores:
+
 # Resultados vigentes — 0.3.0
 
 Fecha: 2026-11-06. Node 24.22.1.

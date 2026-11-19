@@ -46,3 +46,12 @@ La suite del visor valida geometría y matrices con Three.js en Node; no equival
 `core/inspection.js` inspecciona conectividad y contornos; `core/alignment.js` resuelve colocación rígida Rz·Ry·Rx. `kernel/inspection.js` consulta caras/aristas y calcula intersecciones B-Rep. Área/perímetro/DXF se obtienen de contornos muestreados; no se presentan como curvas analíticas exactas. Se conservan huecos por profundidad de anidación y se rechazan contornos ambiguos para exportar.
 
 `createCadTools(viewer,hooks)` recibe sólo APIs públicas de la composición. Las consultas no modifican el documento. La vista previa mueve únicamente matrices de sesión; aplicar valida la firma del proyecto y usa el comando existente de instancias. Instancias fijas, relacionadas o accionadas se rechazan. No se crean relaciones persistentes. Visibilidad de sesión restaurada al cambiar pieza/proyecto/ámbito.
+
+
+## Fabricación 0.5.0
+
+No se sustituye el kernel ni la infraestructura de despliegue. La esfera usa un sólido B-Rep nativo. Los campos nuevos de engranaje tienen defaults que conservan los perfiles anteriores.
+
+Fabricación trabaja sobre copias del proyecto y comprueba su firma antes de consultar y descargar; una edición invalida el resultado. La cara se extrae del B-Rep completo, incluyendo cortes. Se estima espesor por proyección de vértices y se compara volumen con área×espesor: es una comprobación necesaria de consistencia, no una demostración de que el sólido sea una extrusión. Rebajes, sólidos separados y espesor variable requieren revisión. Los elipses/splines se aproximan mediante muestreo adaptativo con objetivo 0,02 mm y límite de 4096 puntos por arista, con aviso.
+
+No hay unfolding de chapa, nesting ni compensación de kerf. Una esfera no genera un perfil de láser fabricable; se exporta como sólido mediante STEP/STL. El CSV registra piezas excluidas y distingue espesor declarado de geometría.

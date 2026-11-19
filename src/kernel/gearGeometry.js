@@ -3,7 +3,7 @@ import { planeFrame } from './planes.js';
 import { featureTurn, turnPoint, turnVector } from './turn.js';
 
 // Engranaje recto de evolvente (ISO 53 / DIN 867): datos y contorno 2D puros. Unidades mm y grados.
-export const defaultGearFeature = () => ({ plane: 'XY', offset: 0, x: 0, y: 0, m: 2, z: 20, alpha: 20, shift: 0, width: 10, bore: 8, hub: 0, hubWidth: 0, helix: 0, phase: 0, reverse: false });
+export const defaultGearFeature = () => ({ plane: 'XY', offset: 0, x: 0, y: 0, m: 2, z: 20, alpha: 20, shift: 0, width: 10, bore: 8, hub: 0, hubWidth: 0, helix: 0, phase: 0, reverse: false, backlash:0, addendum:1, dedendum:1.25 });
 
 const inv = (angle) => Math.tan(angle) - angle;
 
@@ -24,20 +24,26 @@ export function gearSpec(feature, params) {
   if (!(alpha > 0 && alpha < (35 * Math.PI) / 180)) throw new Error('Ángulo de presión entre 0° y 35°');
   if (!(width > 0)) throw new Error('El ancho debe ser mayor que 0');
   if (Math.abs(helix) >= 45) throw new Error('El ángulo de hélice debe ser menor que 45°');
+  const backlash=num(feature.backlash??0),addendum=num(feature.addendum??1),dedendum=num(feature.dedendum??1.25);
+  if(![backlash,addendum,dedendum].every(Number.isFinite)||backlash<0||addendum<.2||addendum>2.5||dedendum<.2||dedendum>3)throw new Error('Juego ≥0; coeficientes de cabeza/pie entre 0,2 y 2,5/3.');
   const rp = (m * z) / 2;
   const rb = rp * Math.cos(alpha);
-  const ra = rp + m * (1 + shift);
-  const rf = rp - m * (1.25 - shift);
+  const ra = rp + m * (addendum + shift);
+  const rf = rp - m * (dedendum - shift);
   if (!(rf > 0.5)) throw new Error('Pie del diente demasiado chico: aumentá los dientes o el módulo');
-  const halfPitchAngle = (m * (Math.PI / 2 + 2 * shift * Math.tan(alpha))) / (2 * rp);
+  if(!(ra>rb&&ra>rf))throw new Error('Cabeza insuficiente: el diámetro exterior debe superar la base y el pie.');
+  const thickness=m*(Math.PI/2+2*shift*Math.tan(alpha))-backlash;
+  if(!(thickness>0))throw new Error('El juego/desplazamiento produce un espesor de diente inválido.');
+  const halfPitchAngle = thickness / (2 * rp);
   const flankAngle = (r) => halfPitchAngle + inv(alpha) - inv(Math.acos(Math.min(1, rb / r)));
   const tipAngle = flankAngle(Math.max(ra, rb + 1e-6));
   if (!(2 * tipAngle * ra > 0.15 * m)) throw new Error('Dientes puntiagudos: reducí el desplazamiento o aumentá los dientes');
+  if(thickness>=Math.PI*m)throw new Error('El espesor del diente supera el paso circular.');
   if (bore < 0 || bore >= 2 * rf - 1) throw new Error('El agujero debe ser menor que el diámetro de pie');
   if (hub > 0 && !(hub > bore && hub < 2 * rf)) throw new Error('El cubo debe estar entre el agujero y el Ø de pie');
   const twist = helix ? (width * Math.tan((helix * Math.PI) / 180) * 180) / (Math.PI * rp) : 0;
   return {
-    m, z, alpha, shift, width, bore, hub, hubWidth, helix, twist, rp, rb, ra, rf, flankAngle, tipAngle,
+    m, z, alpha, shift, backlash,addendum,dedendum,thickness,width, bore, hub, hubWidth, helix, twist, rp, rb, ra, rf, flankAngle, tipAngle,
     pitchDiameter: 2 * rp, outsideDiameter: 2 * ra, rootDiameter: 2 * rf, baseDiameter: 2 * rb,
     label: `m=${m} z=${z} α=${Math.round((alpha * 18000) / Math.PI) / 100}°`.replace(/\./g, ','),
   };
@@ -98,4 +104,14 @@ export function gearFeatureSpecs(part, params) {
     }
   });
   return specs;
+}
+
+// Medidas teóricas de evolvente a un diámetro elegido; no usa la teselación del visor.
+export function gearToothMeasure(spec,{diameter=spec.pitchDiameter,teeth=1}={}) {
+  if(!Number.isFinite(diameter)||diameter/2<Math.max(spec.rb,spec.rf)-1e-8||diameter/2>spec.ra+1e-8||!Number.isInteger(teeth)||teeth<1||teeth>=spec.z)throw new Error('Elegí un diámetro entre base/pie y exterior, y un salto entre 1 y z−1 dientes.');
+  const r=diameter/2,toothAngle=2*spec.flankAngle(r),pitchAngle=2*Math.PI/spec.z,gapAngle=pitchAngle-toothAngle;
+  if(toothAngle<=0||gapAngle<=0)throw new Error('El perfil no tiene diente/hueco válido en ese diámetro.');
+  return {diameter,toothAngle:toothAngle*180/Math.PI,gapAngle:gapAngle*180/Math.PI,pitchAngle:pitchAngle*180/Math.PI,
+    toothArc:r*toothAngle,toothChord:2*r*Math.sin(toothAngle/2),gapArc:r*gapAngle,gapChord:2*r*Math.sin(gapAngle/2),
+    stepArc:r*pitchAngle*teeth,stepChord:2*r*Math.abs(Math.sin(pitchAngle*teeth/2)),localPressureAngle:Math.acos(Math.min(1,spec.rb/r))*180/Math.PI};
 }

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {PropertiesPanel} from '../src/ui/propertiesPanel.js';
+import {createPart} from '../src/core/partModel.js';
+import {commands} from '../src/core/commands.js';
+import {TestElement,testDocument} from './domHarness.mjs';
+globalThis.document=testDocument();const root=new TestElement(),panel=new PropertiesPanel(root,{onUpdate(){},onRefresh(){}});
+let part=commands.addFeature(createPart('Gear'),'gear');panel.render(part,{}, {},part.features[0],false);assert.match(root.textContent,/Reducción de espesor/);assert.match(root.textContent,/Medición teórica/);
+const f=root.querySelectorAll('div').find(n=>n.children[0]?.textContent==='Diámetro de medición (mm)');assert.ok(f);const input=f.querySelector('input');input.value='41';input.dispatchEvent(new Event('change'));assert.match(root.textContent,/Espesor: arco/,'medir conserva la firma de render y el panel');
+part=commands.addFeature(createPart('Ball'),'sphere');panel.render(part,{}, {},part.features[0],false);assert.match(root.textContent,/Diámetro/);assert.match(root.textContent,/Centro Z/);
+console.log('fabricationPanel: editar diámetro de medición y crear esfera sin errores de UI (sin layout)');

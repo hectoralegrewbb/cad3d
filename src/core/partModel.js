@@ -1,3 +1,4 @@
+import {defaultSphereFeature} from '../kernel/sphereGeometry.js';
 import { defaultGearFeature } from '../kernel/gearGeometry.js';
 import { defaultThreadFeature } from '../kernel/threadGeometry.js';
 import { defaultScrewFeature } from '../kernel/screwGeometry.js';
@@ -27,6 +28,7 @@ export const featureLabels = {
   hole: 'Agujero',
   thread: 'Rosca',
   gear: 'Engranaje',
+  sphere: 'Esfera',
   screw: 'Tornillo sin fin',
   pipe: 'Cañería / curva',
   frame: 'Estructura (perfiles)',
@@ -58,6 +60,7 @@ export const featureDefaults = {
   hole: () => ({ plane: 'XY', offset: 0, x: 0, y: 0, d: 8, depth: 10, through: true, reverse: false, count: 1, pcd: 0, angle0: 0, cboreD: 0, cboreDepth: 0 }),
   thread: () => defaultThreadFeature(),
   gear: () => defaultGearFeature(),
+  sphere: () => defaultSphereFeature(),
   screw: () => defaultScrewFeature(),
   pipe: () => defaultPipeFeature(),
   frame: () => defaultFrameFeature(),

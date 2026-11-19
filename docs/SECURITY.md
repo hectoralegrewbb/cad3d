@@ -49,3 +49,11 @@ No se modifica auth ni fetch. Se usa el autoguardado existente, sin nuevo backen
 - Posición/rotación aplicadas por alineación usan `instances[].pos/rot`, con historial y guardado existentes. No se almacena una referencia de cara persistente.
 - BVH, partículas, bandera de primer cruce, contornos, inspección, firmas de vista previa y visibilidad viven sólo en memoria. Detener/reiniciar termina el worker de carga completa; cancelar/cambiar contexto descarta la vista previa. Los resultados exportados son archivos independientes bajo control del usuario.
 - Rangos de presupuesto, medidas, vectores, caras y modos se verifican en sus fronteras. Se limita inspección/colisión a 300.000 triángulos por cuerpo y posiciones candidatas de carga a 12 millones. No se añade auth, backend, fetch ni telemetría.
+
+
+## Datos 0.5.0
+
+- `features[].diameter/x/y/z/mode` de esfera y `backlash/addendum/dedendum` de engranaje se guardan con la pieza, proyecto, autoguardado y revisiones existentes. Los leen validador, kernel y panel. Viven hasta borrar/cambiar la operación/documento; las revisiones hasta su rotación o borrado.
+- Medidas teóricas elegidas, referencias, cara de corte, material y espesor de listado viven sólo en el panel de sesión. Al cerrar se descartan. DXF/ZIP/CSV descargados son copias bajo control del usuario.
+- No se cambian auth, fetch, IndexedDB ni retención. No se transmite el proyecto para fabricar: los archivos se generan localmente. El despliegue conserva GitHub Pages público existente.
+- Texto de nombres/material se renderiza con textContent; la vista SVG usa atributos numéricos. Se validan parámetros, medidas, referencias B-Rep, formatos, orden de contornos y vectores. CSV con escape de comillas y prefijo protector para fórmulas. Cambiar el proyecto bloquea descargar una preparación antigua.
