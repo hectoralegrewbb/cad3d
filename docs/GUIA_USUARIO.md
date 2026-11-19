@@ -251,3 +251,20 @@ Abrir **Herramientas de vista y proyecto → Inspección y montaje CAD**:
 En **Engranaje → Dentado**, el juego reduce el espesor de esa rueda sobre el primitivo; el juego del par depende de ambas ruedas y de la distancia entre centros. Cabeza/pie son coeficientes multiplicados por el módulo. En **Medición teórica** elegir diámetro y salto de dientes; el diámetro debe estar en la zona de evolvente. Ver referencias dibuja círculos primitivo/base/exterior/pie y una cuerda de espesor. No confundir cálculo teórico con medida sobre segmentos del sólido discretizado.
 
 En **Herramientas de vista y proyecto → Inspección y montaje CAD** están ángulos por 3 puntos, por aristas, por caras/ejes y distancias mínimas. Para 3 puntos: extremo, vértice, extremo; esos puntos se seleccionan sobre la malla. Las consultas de caras/aristas usan B-Rep. Escape cancela.
+
+## Editar líneas y formas (0.6.0)
+
+Abrí un boceto. La barra incluye Línea (L), Arco (A), Recortar (T), Partir (B), Alargar, Unir (U), Cerrar y Descomponer. En pantallas pequeñas la barra se desplaza verticalmente.
+
+- Línea: dos clics o longitud/ángulo. Polilínea (P) mantiene el cierre anterior con Enter/doble clic.
+- Arco: inicio, punto intermedio y final; puntos alineados muestran error y permiten corregir el último clic.
+- Recortar: el tramo bajo el cursor se resalta en rojo. Clic elimina el intervalo entre cruces o vértices de una figura. Un círculo necesita dos cruces distintos; una tangencia no basta.
+- Partir: clic interior divide sin quitar geometría. Un círculo se convierte en dos semicírculos desde el punto señalado.
+- Alargar: primero clic en una figura límite finita, después cerca del extremo recto de una polilínea abierta. Se usa el primer cruce en esa dirección.
+- Unir: clic en dos polilíneas abiertas cuyos extremos coincidan (1e-6 mm). Conserva el sentido de sus arcos. Si completan un lazo, queda cerrado.
+- Cerrar: agrega una recta entre los extremos; requiere al menos tres vértices o un arco. No se aplica a una línea recta aislada.
+- Descomponer: convierte una figura en tramos numéricos; deja de editarse como rectángulo/círculo paramétrico. Recortar y Partir también convierten la figura modificada en tramos. Ctrl+Z recupera la figura original.
+
+Esc cancela; Ctrl+Z/Ctrl+Y deshacen/rehacen una operación completa. Si hay restricciones sobre la figura, retiralas explícitamente antes de editarla. Una red abierta o ramificada no se extruye; uní/cerrá/corregí sus extremos. Las líneas que forman un lazo no ambiguo se encadenan al extruir sin ajustar huecos. El DXF láser se obtiene de la cara plana del sólido resultante; sigue sin desarrollar chapa.
+
+No se incluye recorte de elipses/splines, alargado de arcos ni elección automática de regiones entre cruces.

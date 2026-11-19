@@ -1,5 +1,6 @@
+import { entitySegments, segmentPoint, pickSketchSegment, editSketchSegment, extendSketchSegment, joinSketchEntities } from '../core/sketchEditing.js';
 import { solveSketchConstraints } from '../core/sketchConstraints.js';
-import { entityPolygon, pointInPolygon, resolveEntity } from '../kernel/geometry2d.js';
+import { cornerOutline, entityPolygon, pointInPolygon, resolveEntity } from '../kernel/geometry2d.js';
 import { entityDefaults } from '../core/partModel.js';
 import { offsetEntity } from '../core/entityOps.js';
 import { formatUnit, parseLength, toUnit } from '../core/lengthInput.js';
@@ -22,10 +23,11 @@ const typedFields = {
   ellipse: [{ key: 'w', label: 'Eje X' }, { key: 'h', label: 'Eje Y' }],
   slot: [{ key: 'length', label: 'Largo' }, { key: 'width', label: 'Ancho' }],
   poly: [{ key: 'length', label: 'Largo' }, { key: 'angle', label: 'Ángulo °', angle: true }],
+  line: [{ key: 'length', label: 'Largo' }, { key: 'angle', label: 'Ángulo °', angle: true }],
   guide: [{ key: 'angle', label: 'Ángulo °', angle: true }],
   polygon: [{ key: 'flats', label: 'Entre caras' }, { key: 'corners', label: 'Entre vértices' }, { key: 'n', label: 'Lados', integer: true, fallback: 6 }, { key: 'angle', label: 'Giro °', angle: true }],
 };
-const toolTitles = { rect: 'Rectángulo', square: 'Cuadrado', circle: 'Círculo', ellipse: 'Elipse', slot: 'Ranura', poly: 'Línea / polilínea', guide: 'Guía auxiliar', polygon: 'Polígono regular', measure: 'Medir', gap: 'Distancia entre objetos' };
+const toolTitles = { line: 'Línea abierta', arc: 'Arco por tres puntos', trim: 'Recortar', split: 'Partir', extend: 'Alargar', join: 'Unir', close: 'Cerrar', explode: 'Descomponer', rect: 'Rectángulo', square: 'Cuadrado', circle: 'Círculo', ellipse: 'Elipse', slot: 'Ranura', poly: 'Línea / polilínea', guide: 'Guía auxiliar', polygon: 'Polígono regular', measure: 'Medir', gap: 'Distancia entre objetos' };
 
 // Editor de bocetos 2D sobre canvas: dibujar, mover, borrar, imanes con marcadores, tamaño tipeado, reglas y medición.
 export class SketchEditor {
@@ -76,6 +78,7 @@ export class SketchEditor {
   }
 
   open(sketchId, part, params) {
+    this.editFirst = null; this.editPreview = null; this.h.onEditStatus?.('');
     this.sketchId = sketchId;
     this.selectedEntityId = null;
     this.draft = null;
@@ -89,11 +92,13 @@ export class SketchEditor {
 
   close() {
     this.sketchId = null;
+    this.editFirst = null; this.editPreview = null; this.h.onEditStatus?.('');
     this.draft = null;
     this.closeTyped();
   }
 
   update(part, params) {
+    this.editPreview = null;
     this.part = part;
     this.params = params;
     this.geometryCache.clear();
@@ -113,6 +118,9 @@ export class SketchEditor {
 
   setTool(tool) {
     this.tool = tool;
+    this.editFirst = null;
+    this.editPreview = null;
+    this.h.onEditStatus?.(({ trim: 'Recortar: señalá el tramo entre cruces. La figura se convierte en tramos editables.', split: 'Partir: clic en un punto interior. Un círculo se divide en dos semicírculos.', extend: 'Alargar: primero elegí el límite; después el extremo recto que querés extender.', join: 'Unir: elegí dos polilíneas abiertas con extremos coincidentes.', close: 'Cerrar: clic en una polilínea abierta; agrega una recta entre sus extremos.', explode: 'Descomponer: convierte la figura en líneas y arcos; deja de ser paramétrica.', line: 'Línea: clic inicial y final, o ingresá longitud y ángulo.', arc: 'Arco: clic en inicio, punto intermedio y final. Esc cancela.' })[tool] ?? '');
     this.draft = null;
     this.measure = null;
     this.gap = null;
@@ -198,7 +206,7 @@ export class SketchEditor {
     const add = (resolved, id) => {
       if (resolved.t === 'guide') return out.push({ id, line: { x: resolved.x, y: resolved.y, angle: resolved.angle }, kind: 'guide' });
       const polygon = entityPolygon(resolved);
-      if (polygon.length >= 2) out.push({ id, pts: polygon.map((p) => [p.x, p.y]), closed: polygon.length > 2, kind: resolved.t });
+      if (polygon.length >= 2) out.push({ id, pts: polygon.map((p) => [p.x, p.y]), closed: resolved.closed !== false && polygon.length > 2, kind: resolved.t });
     };
     (this.sketch?.entities ?? []).forEach((entity) => {
       if (entity.id === excludeId) return;
@@ -221,7 +229,7 @@ export class SketchEditor {
     if (this.tool === 'measure') return this.measure && !this.measure.fixed ? this.measure.a : null;
     if (this.tool === 'gap') return null;
     if (!this.draft) return null;
-    if (this.draft.tool === 'poly') return this.draft.pts[this.draft.pts.length - 1] ?? null;
+    if (this.draft.tool === 'poly' || this.draft.tool === 'arc') return this.draft.pts[this.draft.pts.length - 1] ?? null;
     return this.draft.start ?? null;
   }
 
@@ -296,13 +304,14 @@ export class SketchEditor {
         const polygon = entityPolygon(resolved);
         const tolerance = 6 / this.view.scale;
         const near = polygon.some((p, idx) => {
+          if (resolved.closed === false && idx === polygon.length - 1) return false;
           const q = polygon[(idx + 1) % polygon.length];
           const dx = q.x - p.x;
           const dy = q.y - p.y;
           const t = Math.max(0, Math.min(1, ((wx - p.x) * dx + (wy - p.y) * dy) / (dx * dx + dy * dy || 1)));
           return Math.hypot(wx - (p.x + t * dx), wy - (p.y + t * dy)) < tolerance;
         });
-        if (near || pointInPolygon({ x: wx, y: wy }, polygon)) return entities[i];
+        if (near || (resolved.closed !== false && pointInPolygon({ x: wx, y: wy }, polygon))) return entities[i];
       } catch {
         /* entidad inválida */
       }
@@ -320,6 +329,7 @@ export class SketchEditor {
     }
     if (event.button !== 0 || px < RULER || py < RULER) return;
     const raw = this.toWorld(px, py);
+    if (['trim', 'split', 'extend', 'join', 'close', 'explode'].includes(this.tool)) return this.editAt(raw);
     if (this.tool === 'select') {
       const hit = this.hitEntity(...raw);
       this.selectedEntityId = hit?.id ?? null;
@@ -337,6 +347,62 @@ export class SketchEditor {
     this.pointerDownTool(snapped.x, snapped.y, event.shiftKey);
   }
 
+  // Adaptación a la API pública pura: las esquinas conservan sus arcos exactos.
+  editEntities() {
+    const entities = this.resolvedEntities().map(e => { const outline = cornerOutline(e); return outline ? { id: e.id, t: 'poly', pts: outline } : e; });
+    if (entities.length > 2000 || entities.reduce((n, e) => n + (e.pts?.length ?? 4), 0) > 10000) throw new Error('Boceto demasiado grande para edición interactiva: dividilo en varios bocetos');
+    return entities;
+  }
+
+  editAt(raw) {
+    try {
+      const entities = this.editEntities();
+      const hit = pickSketchSegment(entities, { x: raw[0], y: raw[1] }, 8 / this.view.scale);
+      if (!hit) throw new Error('Acercate a una línea o arco editable');
+      const entity = entities.find(e => e.id === hit.entityId);
+      let result;
+      if (['trim', 'split'].includes(this.tool)) result = editSketchSegment(entities, hit, this.tool);
+      else if (this.tool === 'join' || this.tool === 'extend') {
+        if (!this.editFirst) {
+          this.editFirst = entity.id; this.selectedEntityId = entity.id;
+          this.h.onEditStatus?.(this.tool === 'join' ? 'Primera polilínea elegida: seleccioná la segunda. Esc cancela.' : 'Límite elegido: clic cerca del extremo recto a alargar. Esc cancela.');
+          return this.render();
+        }
+        const first = entities.find(e => e.id === this.editFirst);
+        if (!first) throw new Error('La primera figura cambió; presioná Esc y volvé a elegir');
+        result = this.tool === 'join' ? joinSketchEntities(first, entity) : extendSketchSegment(entities, hit, first.id);
+      } else if (this.tool === 'close') {
+        if (entity.t !== 'poly' || entity.closed !== false || (entity.pts.length < 3 && !entity.pts.some(p => p.bulge))) throw new Error('Elegí una polilínea abierta con tres vértices o un arco');
+        const pts = entity.pts.map(p => ({ ...p })); pts[pts.length - 1].bulge = 0;
+        result = { removeIds: [entity.id], entities: [{ t: 'poly', closed: true, pts }] };
+      } else {
+        result = { removeIds: [entity.id], entities: entitySegments(entity).flatMap(segment => {
+          const part = (lo, hi) => ({ t: 'poly', closed: false, pts: [{ ...segmentPoint(segment, lo), bulge: segment.kind === 'arc' ? Math.tan(segment.sweep * (hi - lo) / 4) : 0 }, { ...segmentPoint(segment, hi), bulge: 0 }] });
+          return segment.full ? [part(0, .5), part(.5, 1)] : [part(0, 1)];
+        }) };
+      }
+      if ((this.sketch.constraints ?? []).some(c => result.removeIds.includes(c.a) || result.removeIds.includes(c.b))) throw new Error('La figura tiene restricciones: retiralas antes de editar sus tramos');
+      this.h.onReplaceEntities(this.sketchId, result.removeIds, result.entities);
+      this.editFirst = null; this.editPreview = null; this.selectedEntityId = null;
+      this.h.onEditStatus?.('Edición aplicada. Ctrl+Z deshace la operación completa. Las figuras modificadas ahora son tramos.');
+    } catch (error) { this.h.onEditStatus?.(error.message + ' · Esc cancela; podés volver a seleccionar.', true); }
+    this.render();
+  }
+
+  arcFromPoints(pts) {
+    const [a, m, b] = pts.map(([x, y]) => ({ x, y }));
+    const ux = m.x - a.x, uy = m.y - a.y, vx = b.x - a.x, vy = b.y - a.y, den = 2 * (ux * vy - uy * vx);
+    if (Math.abs(den) < 1e-9 || Math.min(Math.hypot(ux, uy), Math.hypot(vx, vy), Math.hypot(b.x - m.x, b.y - m.y)) <= 1e-6) throw new Error('El arco necesita tres puntos distintos y no alineados');
+    const uu = ux * ux + uy * uy, vv = vx * vx + vy * vy;
+    const c = { x: a.x + (vy * uu - uy * vv) / den, y: a.y + (ux * vv - vx * uu) / den };
+    const mod = angle => (angle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    const start = Math.atan2(a.y - c.y, a.x - c.x), mid = mod(Math.atan2(m.y - c.y, m.x - c.x) - start), end = mod(Math.atan2(b.y - c.y, b.x - c.x) - start);
+    const sweep = mid < end ? end : end - 2 * Math.PI;
+    const entity = { t: 'poly', closed: false, pts: [{ ...a, bulge: Math.tan(sweep / 4) }, { ...b, bulge: 0 }] };
+    entitySegments(entity);
+    return entity;
+  }
+
   // Lo que hay bajo el cursor para la herramienta Distancia: una forma (entidad, guía o referencia) o, con Shift, un punto.
   pickForGap(wx, wy, asPoint) {
     if (asPoint) return { kind: 'point', p: [wx, wy] };
@@ -352,6 +418,15 @@ export class SketchEditor {
 
   pointerDownTool(wx, wy, shift = false) {
     const { tool } = this;
+    if (tool === 'arc') {
+      this.draft ??= { tool, pts: [] };
+      this.draft.pts.push([wx, wy]);
+      if (this.draft.pts.length === 3) {
+        try { const entity = this.arcFromPoints(this.draft.pts); this.h.onAddEntity(this.sketchId, entity); this.setTool('select'); }
+        catch (error) { this.draft.pts.pop(); this.h.onEditStatus?.(error.message, true); }
+      }
+      return this.render();
+    }
     if (tool === 'gap') {
       const pick = this.pickForGap(wx, wy, shift);
       if (!this.gap || this.gap.fixed) this.gap = { a: pick, b: null, fixed: false };
@@ -411,6 +486,12 @@ export class SketchEditor {
       if (!(size > 0) || !(sides >= 3 && sides <= 64)) return null;
       const across = typed.flats ? 'flats' : 'corners';
       return { ...entityDefaults.polygon(), x: r3(sx), y: r3(sy), n: sides, d: sized ? sized.store : r3(size), across: sized ? across : 'corners', angle: typed.angle ? typed.angle.store : sized ? 0 : r3(mouseAngle) };
+    }
+    if (tool === 'line') {
+      const length = value('length', Math.hypot(dx, dy));
+      const angle = value('angle', Math.atan2(dy, dx) * 180 / Math.PI) * Math.PI / 180;
+      if (!(length > 1e-6)) return null;
+      return { t: 'poly', closed: false, pts: [{ x: sx, y: sy, bulge: 0 }, { x: sx + length * Math.cos(angle), y: sy + length * Math.sin(angle), bulge: 0 }] };
     }
     if (tool === 'guide') {
       const mouseAngle = Math.hypot(dx, dy) > 1e-9 ? (Math.atan2(dy, dx) * 180) / Math.PI : 0;
@@ -482,6 +563,15 @@ export class SketchEditor {
       return this.render();
     }
     this.hoverRaw = this.toWorld(px, py);
+    if (['trim', 'split', 'extend', 'join', 'close', 'explode'].includes(this.tool)) {
+      this.editPreview = null;
+      try {
+        const entities = this.editEntities();
+        const hit = pickSketchSegment(entities, { x: this.hoverRaw[0], y: this.hoverRaw[1] }, 8 / this.view.scale);
+        if (hit) this.editPreview = this.tool === 'trim' ? editSketchSegment(entities, hit, 'trim').preview : { t: 'poly', closed: false, pts: Array.from({ length: 49 }, (_, i) => ({ ...segmentPoint(hit.segment, i / 48), bulge: 0 })) };
+      } catch { /* No valid interval under cursor: retain the figure unchanged. */ }
+      return this.render();
+    }
     this.hoverPx = [px, py];
     this.shiftDown = event.shiftKey;
     let info = this.computeSnapAt(this.hoverRaw, event.altKey);
@@ -565,7 +655,7 @@ export class SketchEditor {
       return;
     }
     if ((event.key === 'Delete' || event.key === 'Backspace') && this.selectedEntityId) this.h.onRemoveEntity(this.sketchId, this.selectedEntityId);
-    const tools = { v: 'select', r: 'rect', q: 'square', c: 'circle', e: 'ellipse', s: 'slot', p: 'poly', l: 'poly', n: 'polygon', g: 'guide', m: 'measure', d: 'gap' };
+    const tools = { v: 'select', r: 'rect', q: 'square', c: 'circle', e: 'ellipse', s: 'slot', p: 'poly', l: 'line', a: 'arc', t: 'trim', b: 'split', u: 'join', n: 'polygon', g: 'guide', m: 'measure', d: 'gap' };
     if (!event.ctrlKey && !event.metaKey && tools[event.key.toLowerCase()]) this.setTool(tools[event.key.toLowerCase()]);
     if (event.key.toLowerCase() === 'f' && !event.ctrlKey) this.fit();
   }
@@ -752,6 +842,10 @@ export class SketchEditor {
     this.drawReference();
     sketch.entities.forEach((entity) => this.drawEntity(entity));
     this.drawDraft();
+    if (this.editPreview) {
+      this.ctx.save(); this.traceEntity(this.editPreview, entityPolygon(this.editPreview));
+      this.ctx.strokeStyle = this.tool === 'trim' ? colors.bad : colors.preview; this.ctx.lineWidth = 4; this.ctx.stroke(); this.ctx.restore();
+    }
     this.drawProximity();
     this.drawSnap();
     this.drawDragDistances();
@@ -788,7 +882,7 @@ export class SketchEditor {
         trace([[entity.x - Math.cos(rad) * far, entity.y - Math.sin(rad) * far], [entity.x + Math.cos(rad) * far, entity.y + Math.sin(rad) * far]], false);
         return;
       }
-      trace(entityPolygon(entity).map(({ x, y }) => [x, y]), true);
+      trace(entityPolygon(entity).map(({ x, y }) => [x, y]), entity.closed !== false);
     });
     reference.polylines.forEach((line) => {
       ctx.strokeStyle = line.kind === 'solid' ? colors.refSolid : colors.refSketch;
@@ -964,6 +1058,9 @@ export class SketchEditor {
       const [cx, cy] = this.toScreen(entity.x, entity.y);
       ctx.beginPath();
       ctx.ellipse(cx, cy, (entity.w / 2) * this.view.scale, (entity.h / 2) * this.view.scale, (-(entity.angle ?? 0) * Math.PI) / 180, 0, Math.PI * 2);
+    } else if (entity.closed === false) {
+      ctx.beginPath();
+      polygon.forEach((p, i) => { const [x, y] = this.toScreen(p.x, p.y); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
     } else this.tracePath(polygon);
   }
 
@@ -982,7 +1079,7 @@ export class SketchEditor {
     const selected = entity.id === this.selectedEntityId;
     this.traceEntity(moved, polygon);
     ctx.fillStyle = colors.fill;
-    ctx.fill();
+    if (moved.closed !== false) ctx.fill();
     ctx.lineWidth = selected ? 2.5 : 1.8;
     ctx.strokeStyle = selected ? colors.sel : colors.stroke;
     ctx.stroke();
@@ -1047,6 +1144,7 @@ export class SketchEditor {
       this.label(`${fmt(entity.length)} × ${fmt(entity.width)}`, ...this.toScreen(entity.x, entity.y), color);
     } else if (entity.t === 'poly') {
       entity.pts.forEach((p, i) => {
+        if (entity.closed === false && i === entity.pts.length - 1) return;
         const q = entity.pts[(i + 1) % entity.pts.length];
         const length = Math.hypot(q.x - p.x, q.y - p.y);
         if (!p.bulge) this.label(fmt(length), ...this.toScreen((p.x + q.x) / 2, (p.y + q.y) / 2), color);
@@ -1062,7 +1160,13 @@ export class SketchEditor {
     ctx.setLineDash([6, 4]);
     ctx.lineWidth = 1.6;
     const [hx, hy] = this.hover;
-    if (this.draft.tool === 'poly') {
+    if (this.draft.tool === 'arc') {
+      const pts = [...this.draft.pts, [hx, hy]];
+      try {
+        const entity = pts.length === 3 ? this.arcFromPoints(pts) : { t: 'poly', closed: false, pts: pts.map(([x, y]) => ({ x, y })) };
+        this.traceEntity(entity, entityPolygon(entity)); ctx.stroke();
+      } catch { /* Collinear preview has no arc. */ }
+    } else if (this.draft.tool === 'poly') {
       const typedPoint = this.typed.length ? this.polyPointFromTyped() : null;
       const next = typedPoint ?? [hx, hy];
       const pts = [...this.draft.pts, next];
@@ -1089,7 +1193,7 @@ export class SketchEditor {
           if (resolved.t === 'guide') this.drawGuide(resolved, false);
           else {
             this.traceEntity(resolved, entityPolygon(resolved));
-            ctx.fill();
+            if (resolved.closed !== false) ctx.fill();
             ctx.stroke();
             this.drawDimensions(resolved, false);
           }

@@ -901,6 +901,8 @@ const props = new PropertiesPanel(byId('props'), {
   onTogglePick: (id) => togglePick(id),
 });
 const sketchEditor = new SketchEditor(byId('sketchCanvas'), {
+  onReplaceEntities: (sketchId, ids, entities) => apply(state => commands.replaceSketchEntities(state, sketchId, ids, entities)),
+  onEditStatus: (message, error = false) => { const status = byId('skEditStatus'); if (!status) return; status.textContent = message; status.classList.toggle('error', error); },
   onAddEntity: (sketchId, entity) => apply((state) => commands.addEntity(state, sketchId, entity)),
   onUpdateEntity: (sketchId, entityId, patch) => apply((state) => commands.updateEntity(state, sketchId, entityId, patch)),
   onRemoveEntity: (sketchId, entityId) => apply((state) => commands.removeEntity(state, sketchId, entityId)),
@@ -1343,7 +1345,7 @@ function renderProject() {
 }
 
 function syncSketchTools() {
-  document.querySelectorAll('[data-sktool]').forEach((button) => button.classList.toggle('active', button.dataset.sktool === sketchEditor.tool));
+  document.querySelectorAll('[data-sktool]').forEach((button) => { const active = button.dataset.sktool === sketchEditor.tool; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
   document.querySelector('[data-skopt="snap"]')?.classList.toggle('active', sketchEditor.snapOn);
   document.querySelector('[data-skopt="dist"]')?.classList.toggle('active', sketchEditor.distOn);
   document.querySelector('[data-skopt="guides"]')?.classList.toggle('active', sketchEditor.guidesOn);

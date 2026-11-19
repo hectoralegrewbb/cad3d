@@ -54,3 +54,15 @@ Los métodos de reservorio visual se sustituyeron dentro del alcance aprobado. S
 | ui/laserPanel.js | openLaserPanel | hooks de app, geometría plana y escritor DXF |
 
 El ZIP reutiliza `zipStore` público desde la composición de app. `laserDocument` construye una pieza temporal completa y la libera sin reemplazar el documento activo. Las caras de un documento exportado se seleccionan por índice mientras la firma del proyecto permanece igual.
+
+## Edición 2D 0.6.0
+
+| Archivo | API pública | Consumidores |
+|---|---|---|
+| core/sketchEditing.js | entitySegments, segmentGeometry, segmentPoint, nearestOnSegment, segmentIntersections, pickSketchSegment | editor e imanes |
+| core/sketchEditing.js | editSketchSegment, extendSketchSegment, joinSketchEntities | editor |
+| core/sketchEditing.js | closedSketchProfiles, validateSketchPolyline, SKETCH_TOLERANCE | kernel, comandos |
+| core/commands.js | replaceSketchEntities (adicional) | composición app |
+| ui/sketchEditor.js | APIs anteriores; hooks adicionales onReplaceEntities/onEditStatus | app |
+
+Las funciones de geometría reciben datos numéricos resueltos y devuelven datos nuevos; no importan UI/kernel ni acceden a almacenamiento. El editor adapta las esquinas usando la API pública `cornerOutline`.

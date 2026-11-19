@@ -243,3 +243,10 @@ button:focus-visible,summary:focus-visible,[tabindex]:focus-visible { outline:2p
 .fabrication-modal .btn:active { filter:brightness(.88); }
 
 .laser-overlay[hidden] { display:none; }
+
+/* Feedback persistente de edición: el cursor no reemplaza errores/instrucciones. */
+.sketch-edit-status { position:absolute;left:clamp(.5rem,2vw,2rem);right:.5rem;bottom:3.5rem;max-width:55rem;padding:.5rem .75rem;background:rgba(20,25,34,.96);border:1px solid var(--line);border-radius:.5rem;font-size:.8rem;pointer-events:none;overflow-wrap:anywhere; }
+.sketch-edit-status:empty { display:none; }
+.sketch-edit-status.error { color:#ffb5b5;border-color:#b75b67; }
+.sketch-toolbar .tool:active { transform:translateY(1px); }
+@media(max-width:480px) { .sketch-edit-status { bottom:4.5rem;font-size:.75rem; } }

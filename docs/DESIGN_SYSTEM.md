@@ -30,3 +30,7 @@ Herramientas agrupadas dentro del panel fluido existente, sin anchos fijos nuevo
 ## Preparador de fabricación
 
 Modal fluido con controles en grilla adaptable, vista SVG escalable, progreso por pieza, estado aria-live, botones deshabilitados sin datos, errores con recuperación y cierre disponible. Escape vuelve de selección en modelo o cierra. La revisión de perfil complejo es una decisión de fabricación explícita. No se agregan animaciones. Hover, foco, active y disabled siguen los controles existentes con ajustes locales.
+
+## Edición de boceto 0.6.0
+
+Se reutilizan botones, estados focus/hover/disabled y barra adaptable existentes. Recorte anticipa en rojo sólo el intervalo a quitar. El estado de herramienta usa aria-pressed; instrucciones y errores usan una región role=status/aria-live persistente, independiente del cursor. Operaciones síncronas con feedback inmediato, sin espera artificial ni animación nueva.

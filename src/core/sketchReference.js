@@ -139,9 +139,10 @@ export function sketchReference({ part, params, sketchId, mesh = null, showSketc
           const d = sub(world, frame.origin);
           return [dot(d, frame.xDir), dot(d, frame.yDir)];
         });
-        const closed = [...points, points[0]];
+        const isClosed = resolved.closed !== false;
+        const closed = isClosed ? [...points, points[0]] : points;
         const line = simplify(closed, 0.005);
-        result.polylines.push({ points: line.length > 2 ? line.slice(0, -1) : line, closed: line.length > 2, vertices: line.length <= 13, kind: 'sketch' });
+        result.polylines.push({ points: isClosed && line.length > 2 ? line.slice(0, -1) : line, closed: isClosed && line.length > 2, vertices: line.length <= 13, kind: 'sketch' });
       });
     });
   }

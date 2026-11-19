@@ -41,7 +41,9 @@ export function resolveEntity(entity, params) {
     case 'guide':
       return { ...entity, x: num(entity.x, params, 'X'), y: num(entity.y, params, 'Y'), angle: num(entity.angle ?? 0, params, 'Ángulo') };
     case 'poly': {
-      if (!Array.isArray(entity.pts) || entity.pts.length < 3) throw new Error('La polilínea necesita al menos 3 vértices');
+      if (entity.closed !== undefined && typeof entity.closed !== 'boolean') throw new Error('Estado abierto/cerrado inválido');
+      if (entity.closed === false && entity.pts?.some(p => p.r || p.c)) throw new Error('Uní y cerrá el perfil antes de redondear sus vértices');
+      if (!Array.isArray(entity.pts) || entity.pts.length < (entity.closed === false || entity.pts.some(p => p.bulge) ? 2 : 3)) throw new Error('La polilínea necesita más vértices (2 abierta o con arcos; 3 cerrada recta)');
       return {
         ...entity,
         pts: entity.pts.map((point, index) => ({
@@ -97,7 +99,7 @@ export function rectPoints(entity) {
 // Contorno de tramos/arcos de una entidad con esquinas modificadas (rect con `corners`, polilínea con r/c por vértice); null si no aplica.
 export function cornerOutline(entity) {
   if (entity.t === 'rect' && entity.corners?.some((corner) => corner.r > 0 || corner.c > 0)) return rectPoints(entity);
-  if (entity.t === 'poly' && entity.pts.some((point) => point.r > 0 || point.c > 0)) return applyCorners(entity.pts, entity.pts);
+  if (entity.t === 'poly' && entity.closed !== false && entity.pts.some((point) => point.r > 0 || point.c > 0)) return applyCorners(entity.pts, entity.pts);
   return null;
 }
 
@@ -158,6 +160,7 @@ export function entityPolygon(entity, arcSteps = 24) {
       entity.pts.forEach((point, i) => {
         const next = entity.pts[(i + 1) % entity.pts.length];
         out.push({ x: point.x, y: point.y });
+        if (entity.closed === false && i === entity.pts.length - 1) return;
         if (point.bulge) {
           const theta = 4 * Math.atan(point.bulge);
           const dx = next.x - point.x;

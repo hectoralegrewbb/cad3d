@@ -79,3 +79,9 @@ Automáticos: `fabrication.test.mjs` (esfera, perfiles, medidas, DXF y rebajes),
 Navegador: crear esfera, cambiar diámetro/centro, mover, deshacer y guardar/reabrir; crear engranaje, editar juego/cabeza/pie y diámetro de medición; elegir cara de chapa y revisar SVG; descargar DXF/lote y comprobar CSV/exclusiones. Confirmar errores para esfera/STL sin B-Rep, rebaje, perfil degenerado y referencia antigua. Revisión 320/768/1024+ según disponibilidad de entorno.
 
 Despliegue: conservar `.nojekyll` y fuente GitHub Pages existente; comprobar ejecución `pages build and deployment`, marcador `elcad-version=0.5.0` y recursos de módulos/WASM en la URL publicada. No cambiar permisos ni audiencia.
+
+## Casos 0.6.0
+
+Automáticos: `sketchEditing.test.mjs`, `sketchEditingUI.test.mjs`, `sketchEditingKernel.test.mjs`. Cubren intersecciones exactas, tangencias, recorte/división de círculos, orientación de arcos al unir, línea extendida, solapes/ramificaciones, recuperación después de perfil abierto, área B-Rep de 200 mm² y semicírculo, DXF con bulge, persistencia, restricciones y undo/redo. Las pruebas UI ejecutan métodos/eventos con canvas simulado; no verifican layout/GPU.
+
+Manuales pendientes en navegador con WebGL, a 320/768/1024+ px: abrir proyecto anterior; dibujar rectángulo cruzado por círculo; recortar ambos; cerrar/unir; extruir y descargar DXF; Ctrl+Z/Ctrl+Y; guardar/reabrir; comprobar barra desplazable, mensajes y focus. Validar el DXF en CAM antes de fabricar.

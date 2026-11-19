@@ -57,3 +57,9 @@ No se modifica auth ni fetch. Se usa el autoguardado existente, sin nuevo backen
 - Medidas teóricas elegidas, referencias, cara de corte, material y espesor de listado viven sólo en el panel de sesión. Al cerrar se descartan. DXF/ZIP/CSV descargados son copias bajo control del usuario.
 - No se cambian auth, fetch, IndexedDB ni retención. No se transmite el proyecto para fabricar: los archivos se generan localmente. El despliegue conserva GitHub Pages público existente.
 - Texto de nombres/material se renderiza con textContent; la vista SVG usa atributos numéricos. Se validan parámetros, medidas, referencias B-Rep, formatos, orden de contornos y vectores. CSV con escape de comillas y prefijo protector para fórmulas. Cambiar el proyecto bloquea descargar una preparación antigua.
+
+## Datos de boceto 0.6.0
+
+El único dato persistente adicional es `closed` booleano opcional en polilíneas. Vive con la entidad en el archivo .part3d/.proj3d y en el guardado local ya existente. Lo leen validación, editor, referencias y kernel; se elimina al borrar la entidad/proyecto o el guardado local. Coordenadas y bulge usan los campos existentes. Historial y previsualización son de sesión. Sin auth, fetch, endpoints ni almacenamiento nuevos.
+
+Se validan extremos finitos, radios, tramos nulos, rangos, solapes y referencias antes del reemplazo. Edición interactiva: máximo 2000 entidades/10000 vértices; encadenado: 2000 cadenas; validación de un perfil nuevo: 2000 segmentos. Las restricciones impiden reemplazar una entidad referenciada. Los mensajes se renderizan con textContent.
