@@ -1,3 +1,4 @@
+import { createTouchGestures } from './touchGestures.js';
 import { entitySegments, segmentPoint, pickSketchSegment, editSketchSegment, extendSketchSegment, joinSketchEntities } from '../core/sketchEditing.js';
 import { solveSketchConstraints } from '../core/sketchConstraints.js';
 import { cornerOutline, entityPolygon, pointInPolygon, resolveEntity } from '../kernel/geometry2d.js';
@@ -68,6 +69,17 @@ export class SketchEditor {
     canvas.addEventListener('dblclick', () => this.finishPoly());
     canvas.addEventListener('wheel', (e) => this.wheel(e), { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.touch = createTouchGestures(canvas, {
+      onTap: (e) => { this.move(e); this.down(e); this.up(e); },
+      onDoubleTap: () => this.finishPoly(),
+      canDrag: (e) => this.canTouchDrag(e),
+      onDragStart: (e) => this.down(e),
+      onDragMove: (e) => this.move(e),
+      onDragEnd: (e) => this.up(e),
+      onDragCancel: () => { this.drag = null; this.render(); },
+      onPan: (dx, dy) => this.panBy(dx, dy),
+      onPinch: (g) => this.pinch(g),
+    });
     window.addEventListener('keydown', (e) => this.key(e));
     window.addEventListener('keyup', (e) => e.code === 'Space' && (this.spaceDown = false));
     new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
@@ -284,11 +296,40 @@ export class SketchEditor {
   wheel(event) {
     event.preventDefault();
     const [px, py] = this.eventPoint(event);
+    this.zoomAt(px, py, event.deltaY < 0 ? 1.15 : 1 / 1.15);
+  }
+
+  zoomAt(px, py, factor) {
     const [wx, wy] = this.toWorld(px, py);
-    this.view.scale = Math.min(400, Math.max(0.3, this.view.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    this.view.scale = Math.min(400, Math.max(0.3, this.view.scale * factor));
     this.view.cx = wx - (px - this.size.w / 2) / this.view.scale;
     this.view.cy = wy + (py - this.size.h / 2) / this.view.scale;
     this.render();
+  }
+
+  // Táctil: desplazar la vista (px de pantalla) y zoom + desplazamiento con dos dedos. No tocan la geometría.
+  panBy(dx, dy) {
+    this.view.cx -= dx / this.view.scale;
+    this.view.cy += dy / this.view.scale;
+    this.render();
+  }
+
+  pinch({ cx, cy, dx, dy, scale }) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.view.cx -= dx / this.view.scale;
+    this.view.cy += dy / this.view.scale;
+    this.zoomAt(cx - rect.left, cy - rect.top, scale);
+  }
+
+  // Con un dedo solo se arrastra una figura si ya estaba seleccionada; si no, el gesto mueve la vista.
+  canTouchDrag(event) {
+    if (this.tool !== 'select' || !this.selectedEntityId) return false;
+    const [px, py] = this.eventPoint(event);
+    return this.hitEntity(...this.toWorld(px, py))?.id === this.selectedEntityId;
+  }
+
+  capture(event) {
+    try { this.canvas.setPointerCapture(event.pointerId); } catch { /* puntero sintético o ya liberado */ }
   }
 
   hitEntity(wx, wy) {
@@ -324,7 +365,7 @@ export class SketchEditor {
     const [px, py] = this.eventPoint(event);
     if (event.button === 1 || event.button === 2 || this.spaceDown) {
       this.pan = { px, py, cx: this.view.cx, cy: this.view.cy };
-      this.canvas.setPointerCapture(event.pointerId);
+      this.capture(event);
       return;
     }
     if (event.button !== 0 || px < RULER || py < RULER) return;
@@ -338,7 +379,7 @@ export class SketchEditor {
         this.drag = { id: hit.id, start: null, delta: [0, 0], entity: hit };
         const snapped = this.computeSnapAt(raw, event.altKey);
         this.drag.start = [snapped.x, snapped.y];
-        this.canvas.setPointerCapture(event.pointerId);
+        this.capture(event);
       }
       return this.render();
     }
