@@ -54,8 +54,16 @@ export class Viewer {
     canvas.addEventListener('webglcontextrestored', () => { this.render(); this.onContextError?.('Contexto gráfico recuperado'); });
     canvas.addEventListener('pointercancel', () => { this.downAt = null; this.cancelPlacement(); });
     canvas.addEventListener('pointermove', (event) => this.handleMove(event));
-    canvas.addEventListener('pointerdown', (event) => (this.downAt = { x: event.clientX, y: event.clientY }));
+    this.touchIds = new Set();
+    this.multiTouch = false; // un gesto de dos dedos (zoom/giro) nunca cuenta como clic de selección
+    canvas.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'touch') { this.touchIds.add(event.pointerId); if (this.touchIds.size > 1) this.multiTouch = true; }
+      this.downAt = { x: event.clientX, y: event.clientY };
+    });
     canvas.addEventListener('pointerup', (event) => this.handleUp(event));
+    const releaseTouch = (event) => { this.touchIds.delete(event.pointerId); if (!this.touchIds.size) this.multiTouch = false; };
+    canvas.addEventListener('pointerup', releaseTouch);
+    canvas.addEventListener('pointercancel', releaseTouch);
     this.controls.addEventListener('change', () => this.render());
     new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
     this.resize();
@@ -391,6 +399,7 @@ export class Viewer {
   }
 
   handleUp(event) {
+    if (this.multiTouch) { this.downAt = null; return; }
     if (this.placing && this.downAt) {
       const moved = Math.hypot(event.clientX - this.downAt.x, event.clientY - this.downAt.y) > 4;
       this.downAt = null;

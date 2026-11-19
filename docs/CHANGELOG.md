@@ -1,3 +1,11 @@
+## Sin publicar — 2026-11-19 — Gestos táctiles (primer paso de la versión móvil)
+
+Alcance: `src/ui/touchGestures.js` (nuevo), `sketchEditor.js`, `planoView.js`, `viewer.js`. No se modifica kernel, modelo de datos ni escritorio (mouse y lápiz no pasan por los gestos).
+
+- Boceto y plano: tocar = clic; un dedo arrastrando mueve la vista (o la figura/cota/vista ya seleccionada); dos dedos hacen zoom y desplazamiento; doble toque cierra la polilínea. Un segundo dedo cancela cualquier arrastre de edición en curso: mover o ampliar la vista no modifica geometría.
+- Visor 3D: soltar los dedos tras un gesto de dos dedos ya no cuenta como clic de selección.
+- `tests/touchGestures.test.mjs`. Pendiente: QA en dispositivo real, barra inferior Proyecto · Crear · Editar · Más, entrada numérica sin teclado físico, modo Automático/Móvil/Escritorio y tolerancias de selección para dedo.
+
 ## 0.6.1 — 2026-11-19 — Carpetas plegables para repeticiones
 
 Alcance aprobado: UI de propiedades, comandos/validación de metadatos y composición app. Base main `05be8e134d1326d2291397a89c38b610f8450b13`. No se modifica el kernel, aire ni movimiento.

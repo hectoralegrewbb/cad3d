@@ -1,3 +1,4 @@
+import { createTouchGestures } from './touchGestures.js';
 import { toSheet } from '../drawing/sheet.js';
 import { dimensionPrimitives } from '../drawing/dimensions.js';
 import { primitivesToSvg } from '../drawing/svgWriter.js';
@@ -18,6 +19,16 @@ export class PlanoView {
     container.addEventListener('pointerdown', (event) => this.down(event));
     container.addEventListener('pointermove', (event) => this.move(event));
     container.addEventListener('pointerup', (event) => this.up(event));
+    this.touch = createTouchGestures(container, {
+      onTap: (e) => { this.move(e); this.down(e); this.up(e); },
+      canDrag: (e) => this.canTouchDrag(e),
+      onDragStart: (e) => this.down(e),
+      onDragMove: (e) => this.move(e),
+      onDragEnd: (e) => this.up(e),
+      onDragCancel: () => this.cancelDrags(),
+      onPan: (dx, dy) => this.panBy(dx, dy),
+      onPinch: (g) => this.pinch(g),
+    });
     window.addEventListener('keydown', (event) => this.key(event));
     window.addEventListener('keyup', (event) => event.code === 'Space' && (this.spaceDown = false));
   }
@@ -88,6 +99,40 @@ export class PlanoView {
     const [x, y, w, h] = this.currentBox();
     this.viewBox = [px - (px - x) * factor, py - (py - y) * factor, w * factor, h * factor];
     this.applyViewBox();
+  }
+
+  // Táctil: la vista se mueve y se amplía sin tocar cotas ni posiciones de vistas.
+  panBy(dx, dy) {
+    if (!this.svg || !this.viewBox) return;
+    const rect = this.container.getBoundingClientRect();
+    const [x, y, w, h] = this.currentBox();
+    this.viewBox = [x - (dx / rect.width) * w, y - (dy / rect.height) * h, w, h];
+    this.applyViewBox();
+  }
+
+  pinch({ cx, cy, dx, dy, scale }) {
+    if (!this.svg || !this.viewBox) return;
+    this.panBy(dx, dy);
+    const [px, py] = this.toSheetPoint({ clientX: cx, clientY: cy });
+    const factor = 1 / scale;
+    const [x, y, w, h] = this.currentBox();
+    this.viewBox = [px - (px - x) * factor, py - (py - y) * factor, w * factor, h * factor];
+    this.applyViewBox();
+  }
+
+  // Un dedo arrastra solo lo que ya estaba elegido (vista con «Mover», cota seleccionada); si no, mueve la hoja.
+  canTouchDrag(event) {
+    if (!this.result) return false;
+    if (this.tool === 'move') return Boolean(this.viewAt(this.toSheetPoint(event)));
+    if (this.tool !== 'select' || !this.selectedDim) return false;
+    return event.target?.closest?.('[data-dim]')?.getAttribute('data-dim') === this.selectedDim;
+  }
+
+  cancelDrags() {
+    this.viewDrag = null;
+    this.dimDrag = null;
+    this.svg?.querySelector('#dimPreview')?.remove();
+    this.drawOverlay();
   }
 
   currentBox() {
