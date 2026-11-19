@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
+  <meta name="elcad-version" content="0.5.0" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ElCad 3D — modelador de piezas</title>
   <link rel="stylesheet" href="styles.css" />
@@ -12,7 +13,7 @@
     <div><h2>Preparando ElCad 3D</h2><p id="bootText">Cargando el motor CAD y el proyecto local…</p><div class="boot-track"></div><button id="bootRetry" class="btn" hidden>Reintentar carga</button></div>
   </div>
   <header class="topbar">
-    <strong class="brand">ElCad <span>3D</span></strong>
+    <strong class="brand">ElCad <span>3D</span> <small aria-label="Versión 0.5.0">0.5.0</small></strong>
     <input id="partName" class="part-name" spellcheck="false" aria-label="Nombre de la pieza" />
     <div class="group">
       <button id="undoBtn" class="btn" title="Deshacer (Ctrl+Z)">↶</button>
@@ -35,8 +36,8 @@
       <button id="stlBtn" class="btn" title="Malla para imprimir en 3D">STL</button>
       <button id="mfBtn" class="btn" title="3MF para Bambu Studio / Orca">3MF</button>
       <button id="stepBtn" class="btn">STEP</button>
-      <button id="dxfLaserBtn" class="btn" title="DXF 1:1 para cortadora láser: contorno, agujeros y chaflanes de la cara plana más grande de la pieza (polilínea cerrada con arcos, AutoCAD 2000)">DXF láser</button>
-      <button id="dxfLaserR12Btn" class="btn" title="Igual, pero con líneas y arcos sueltos (AutoCAD R12) para software láser antiguo">DXF láser R12</button>
+      <button id="dxfLaserBtn" class="btn" title="DXF 1:1 para cortadora láser: Elegir pieza/cara, revisar perfil 2D y descargar DXF 1:1 o lote ZIP">DXF láser</button>
+      <button id="dxfLaserR12Btn" class="btn" title="Preparar fabricación en formato DXF R12 compatible">DXF láser R12</button>
     </div>
     <div class="group modes">
       <button id="scopePart" class="btn active" title="Editar la pieza activa">Pieza</button>

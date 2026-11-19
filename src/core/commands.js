@@ -44,7 +44,7 @@ export const commands = {
     const wanted = new Set(ids);
     let changed = false;
     const features = state.features.map((feature) => {
-      if (!wanted.has(feature.id) || !['extrude', 'revolve', 'gear', 'screw', 'pipe', 'mesh', 'frame', 'step', 'loft', 'sweep'].includes(feature.type)) return feature;
+      if (!wanted.has(feature.id) || !['extrude', 'revolve', 'gear', 'screw', 'pipe', 'mesh', 'frame', 'step', 'loft', 'sweep', 'sphere'].includes(feature.type)) return feature;
       const current = Array.isArray(feature.move) ? feature.move : [0, 0, 0];
       const move = [0, 1, 2].map((i) => Math.round(((absolute ? 0 : Number(current[i]) || 0) + (Number(delta[i]) || 0)) * 1e6) / 1e6);
       changed = true;

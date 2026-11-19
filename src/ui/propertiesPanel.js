@@ -1,6 +1,6 @@
 import { constraintPanel } from './constraintPanel.js';
 import { entityDefaults, entityLabels, featureLabels, planeLabels, selectorKinds } from '../core/partModel.js';
-import { centerDistance, gearSpec } from '../kernel/gearGeometry.js';
+import { centerDistance, gearSpec, gearToothMeasure } from '../kernel/gearGeometry.js';
 import { chainLayout, chainTable, sprocketGeometry } from '../core/sprocket.js';
 import { evaluate } from '../core/expression.js';
 import { offsetEntity } from '../core/entityOps.js';
@@ -26,7 +26,7 @@ export class PropertiesPanel {
       this.root.replaceChildren(el('h3', { text: 'Propiedades' }), el('p', { class: 'muted', text: 'Elegí una operación del árbol.' }));
       return;
     }
-    const num = (label, key, unit) => field(label, exprInput(feature[key], params, (value) => this.h.onUpdate(feature.id, { [key]: value }), { unit }));
+    const num = (label, key, unit) => field(label, exprInput(feature[key]??({backlash:0,addendum:1,dedendum:1.25}[key]), params, (value) => this.h.onUpdate(feature.id, { [key]: value }), { unit }));
     const content = [el('h3', { text: featureLabels[feature.type] })];
     const result = results[feature.id];
     if (result?.status === 'error') content.push(el('div', { class: 'alert', text: result.error }));
@@ -116,6 +116,9 @@ export class PropertiesPanel {
         );
         break;
       }
+      case 'sphere':
+        content.push(num('Diámetro','diameter','mm'),num('Centro X','x','mm'),num('Centro Y','y','mm'),num('Centro Z','z','mm'),field('Operación',selectInput(modeOptions.slice(0,2),feature.mode??'add',v=>this.h.onUpdate(feature.id,{mode:v}))),this.turnSection(feature,params));
+        break;
       case 'gear': {
         let spec = null;
         let problem = null;
@@ -139,6 +142,8 @@ export class PropertiesPanel {
           num('Cantidad de dientes', 'z', 'u'),
           num('Ángulo de presión', 'alpha', '°'),
           num('Desplazamiento de perfil (x)', 'shift', ''),
+          num('Reducción de espesor en primitivo (juego por rueda)','backlash','mm'),
+          num('Coeficiente de cabeza','addendum','×m'),num('Coeficiente de pie','dedendum','×m'),
           num('Ángulo de hélice (0 = recto)', 'helix', '°'),
           num('Giro del dentado (fase)', 'phase', '°'),
           section('Cuerpo'),
@@ -149,6 +154,12 @@ export class PropertiesPanel {
           checkInput(feature.reverse, (value) => this.h.onUpdate(feature.id, { reverse: value }), 'Invertir sentido (hacia atrás de la normal)'),
           problem ? el('div', { class: 'alert soft', text: problem }) : el('p', { class: 'muted', text: `Ø primitivo ${fmt(spec.pitchDiameter)} · Ø exterior ${fmt(spec.outsideDiameter)} · Ø pie ${fmt(spec.rootDiameter)} · Ø base ${fmt(spec.baseDiameter)} mm` }),
         );
+        if(spec){
+          this.gearMeasures??={};const measure=this.gearMeasures[feature.id]??{diameter:spec.pitchDiameter,teeth:1};let values,error;
+          try{values=gearToothMeasure(spec,measure);}catch(e){error=e.message;}
+          content.push(section('Medición teórica del dentado'),field('Diámetro de medición (mm)',textInput(String(measure.diameter),v=>{this.gearMeasures[feature.id]={...measure,diameter:Number(v.replace(',','.'))};this.render(part,params,results,feature,picking);})),field('Salto de dientes',textInput(String(measure.teeth),v=>{this.gearMeasures[feature.id]={...measure,teeth:Number(v)};this.render(part,params,results,feature,picking);})),error?el('p',{class:'err-block',text:error}):el('p',{class:'hint-block',text:`Ángulo de paso ${fmt(values.pitchAngle)}° · diente ${fmt(values.toothAngle)}° · hueco ${fmt(values.gapAngle)}°\nEspesor: arco ${fmt(values.toothArc)} / cuerda ${fmt(values.toothChord)} mm\nHueco: arco ${fmt(values.gapArc)} / cuerda ${fmt(values.gapChord)} mm\nEntre dientes: arco ${fmt(values.stepArc)} / cuerda ${fmt(values.stepChord)} mm · presión local ${fmt(values.localPressureAngle)}°`,style:'white-space:pre-line'}),el('p',{class:'muted',text:'Medidas teóricas de evolvente. La reducción de espesor se aplica a esta rueda; el juego del par depende de ambas ruedas y sus centros.'}));
+        }
+        if(spec)content.push(button('Ver círculos y medición en el modelo',()=>this.h.onGearMeasure?.(feature.id,this.gearMeasures?.[feature.id]??{diameter:spec.pitchDiameter,teeth:1})),button('Ocultar referencias',()=>this.h.onGearMeasure?.(null)));
         if (spec) {
           const z2 = Number(String(mate).replace(',', '.'));
           content.push(

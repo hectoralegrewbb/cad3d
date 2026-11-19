@@ -5,7 +5,7 @@ import { hasRealThread } from './threadGeometry.js';
 import { extractMesh } from './meshExtractor.js';
 import { removeBody } from './shapeOps.js';
 import { exportStep, exportStl, exportMeshStl } from './exporters.js';
-import { planarFaceLoops } from './laserOutline.js';
+import { planarFaceLoops, planarFaces } from './laserOutline.js';
 import { exportThreeMf } from './threeMf.js';
 import { buildAssembly, placeShape, pruneAssemblyCache, safeTravel } from './assemblyBuilder.js';
 import { buildDrawing } from '../drawing/buildDrawing.js';
@@ -274,6 +274,15 @@ export function createKernelService(rep) {
     },
 
     // Lazos (exterior + agujeros) de la cara plana más grande de la pieza activa, para el DXF de láser.
+    laserFaces(){if(!current?.shape)throw new Error('No hay un sólido B-Rep.');return planarFaces(rep,current.shape);},
+    laserDocument({part,faceIndex}={}){
+      const built=buildPart(rep,part);try{
+        const errors=Object.values(built.results).filter(r=>r.status==='error');
+        if(errors.length||Object.keys(built.paramErrors??{}).length||built.meshOnly?.length)throw new Error('La pieza tiene operaciones fallidas o cuerpos sólo malla. Corregila antes de exportar.');
+        const faces=planarFaces(rep,built.shape);if(!faces.length)throw new Error('La pieza no tiene caras planas. Necesita otro proceso de fabricación o desarrollo.');
+        const index=faceIndex??faces[0].index;return {faces,outline:planarFaceLoops(rep,built.shape,{faceIndex:index})};
+      }finally{built.shape?.delete?.();}
+    },
     laserOutline({ faceId } = {}) {
       if (!current?.shape) throw new Error('No hay geometría para exportar');
       return planarFaceLoops(rep, current.shape, { faceId });
@@ -309,11 +318,19 @@ export function createKernelService(rep) {
       };
     },
 
+    measureEntities({first,second}){
+      const locate=reference=>{const instance=assembly?.instances.find(i=>i.id===reference.itemId);const shape=instance?.shape??current?.shape;if(!shape||instance?.meshOnly||(!instance&&!['part',null,undefined].includes(reference.itemId)))throw new Error('La medición precisa requiere sólidos B-Rep.');
+        if(reference.edgeIndex!==undefined){const edges=shape.edges;const index=reference.edgeIndex;if(!Number.isInteger(index)||!edges[index]){edges.forEach(e=>e.delete());throw new Error('Arista inválida.');}const selected=edges[index];edges.forEach((e,i)=>{if(i!==index)e.delete();});return selected;}
+        const base=instance?assembly.parts.find(p=>p.id===instance.partId)?.shape:shape,faces=base.faces,face=faces.find(f=>f.hashCode===reference.faceId);if(!face){faces.forEach(f=>f.delete());throw new Error('Cara inválida.');}let selected=face.clone();faces.forEach(f=>f.delete());if(instance){const placed=placeShape(selected,instance);selected.delete();selected=placed;}return selected;
+      };
+      const a=locate(first);let b;const tool=new rep.DistanceTool();try{b=locate(second);return {distance:tool.distanceBetween(a,b)};}finally{a.delete();b?.delete();tool.delete();}
+    },
     inspectEntity({itemId,faceId,edgeIndex}) {
       const instance=assembly?.instances.find(i=>i.id===itemId);
       const shape=instance?assembly.parts.find(p=>p.id===instance.partId)?.shape:current?.shape;
       if(instance?.meshOnly||(!instance&&!['part',null,undefined].includes(itemId)))throw new Error('Elegí una pieza B-Rep sin grupos de movimiento.');
       const result=describeEntity(rep,shape,{faceId,edgeIndex});
+      if(instance&&result.start){for(const key of ['start','end']){const vertex=rep.makeVertex(result[key]),placed=placeShape(vertex,instance);vertex.delete();result[key]=placed.asTuple();placed.delete();}}
       if(instance&&result.origin){
         const dot=rep.makeVertex(result.origin),placed=placeShape(dot,instance);dot.delete();result.origin=placed.asTuple();placed.delete();
         if(result.normal){const angles=instance.rot.map(v=>v*Math.PI/180);let [x,y,z]=result.normal;let c=Math.cos(angles[0]),s=Math.sin(angles[0]);[y,z]=[c*y-s*z,s*y+c*z];c=Math.cos(angles[1]);s=Math.sin(angles[1]);[x,z]=[c*x+s*z,-s*x+c*z];c=Math.cos(angles[2]);s=Math.sin(angles[2]);result.normal=[c*x-s*y,s*x+c*y,z];

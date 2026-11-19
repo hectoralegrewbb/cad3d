@@ -1,3 +1,4 @@
+import {sphereSpec} from './sphereGeometry.js';
 import { solveSketchConstraints } from '../core/sketchConstraints.js';
 import { gearOutline, gearSpec } from './gearGeometry.js';
 import { screwSpec } from './screwGeometry.js';
@@ -709,6 +710,7 @@ function buildPartInner(rep, part, { stopBefore = null, forDrawing = false } = {
       else if (feature.type === 'extrude') next = buildExtrude(rep, solid, feature, sketchOf(part.features, feature), params);
       else if (feature.type === 'revolve') next = buildRevolve(rep, solid, feature, sketchOf(part.features, feature), params);
       else if (feature.type === 'hole') next = buildHole(rep, solid, feature, params);
+      else if(feature.type==='sphere'){const spec=sphereSpec(feature,params);next=combine(solid,shifted(rep.makeSphere(spec.radius).translate(spec.center),feature,params),feature.mode??'add');}
       else if (feature.type === 'gear') next = buildGear(rep, solid, feature, params, forDrawing);
       else if (feature.type === 'screw') next = buildScrew(rep, solid, feature, params, forDrawing);
       else if (feature.type === 'thread') next = buildThread(rep, solid, feature, params, forDrawing);

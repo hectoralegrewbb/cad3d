@@ -102,3 +102,10 @@ Nuevos: `src/core/{inspection,alignment}.js`, `src/kernel/inspection.js`, `src/u
 Modificados: `src/app/main.js`, `src/core/{hopperFill,meshTransform}.js`, `src/io/geometryWorker.js`, `src/kernel/{meshExtractor,kernelService}.js`, `src/particles/{hopperLoad,sim,worker,particleRunner,recorder}.js`, `src/ui/{workbench,particlePanel}.js`, `src/viewer/viewer.js`, `styles.css`, `tests/{hopperFill,viewerShared}.test.mjs`, `scripts/check-hopper-air.mjs`, `examples/{Tolva_llena.proj3d,LEEME.md}`, manifiestos y documentación.
 
 Prueba de controles adicional: `tests/cadTools.test.mjs` y soporte `tests/domHarness.mjs` (sin layout).
+
+
+## 0.5.0
+
+Nuevos: `core/measurement.js`, `kernel/sphereGeometry.js`, `ui/laserPanel.js` (bajo `src/`); pruebas `fabrication`, `fabricationPanel` y `laserPanel`.
+
+Modificados: composición `app/main.js`; `core/{commands,laserOutline,partModel,validation}.js`; `io/laserDxf.js`; `kernel/{gearGeometry,inspection,kernelService,laserOutline,partBuilder}.js`; `ui/{cadTools,featureTree,propertiesPanel,busyBar}.js`; estilos, HTML, manifiestos y documentación. Sin cambios en simulación de aire, sensores ni control de movimiento.

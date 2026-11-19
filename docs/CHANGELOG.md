@@ -1,3 +1,14 @@
+## 0.5.0 — 2026-11-19 — Fabricación, engranajes y esferas
+
+Alcance aprobado: `core`, `kernel`, `io`, `ui`, `viewer` mediante sus APIs existentes y composición en `app`. Se conserva la estructura y el formato 1 del proyecto. Base: main `991a3f97efd31c544bb7e675ea13dd82cd6d7b0d`; no se modifican los módulos de aire/movimiento.
+
+- Esfera paramétrica (diámetro, centro XYZ, agregar/cortar), integrada a árbol, movimiento, historial, validación y exportación de sólidos.
+- Engranaje: juego circular como reducción de espesor por rueda, cabeza y pie en múltiplos del módulo; defaults legacy preservados. Mediciones teóricas de paso, diente/hueco (arco y cuerda), presión local y distancia entre dientes a un diámetro; círculos de referencia visibles.
+- Medición general: tres puntos, ángulo entre aristas rectas, separación mínima B-Rep entre aristas o caras. Se distingue el muestreo por selección sobre malla del resultado analítico.
+- Preparación láser por pieza/cara con vista previa SVG, DXF R12/R2000 y lote ZIP con CSV de cantidades/material/espesor declarado. Perfiles no uniformes se excluyen del lote automático y se listan con motivo; exportación individual sólo tras revisión explícita. No se inventan desarrollos de superficies curvas ni se compensa kerf.
+- Correcciones necesarias del exportador: marco ortonormal para caras inclinadas (sin deformar medidas), extremos analíticos de arcos en la caja 2D, reconocimiento de circunferencias partidas y orden de contornos interiores/exteriores. Validación de segmentos degenerados/duplicados y coordenadas.
+- Pendiente: desarrollo de chapa, nesting, compensación CAM, flancos analíticos de engranaje (el sólido conserva la discretización existente), recuperación del arranque cuando WebGL no está disponible y validación de fabricación con el proveedor. La compatibilidad DXF se comprueba por reimportación y casos conocidos; no equivale a probar cada controlador de máquina.
+
 ## 2026-11-16 — Entrada de aire, preparación y reinicio de presión
 
 Alcance aprobado: correcciones puntuales en `particles` y su estado en `ui`; se conservan formatos y firmas existentes.

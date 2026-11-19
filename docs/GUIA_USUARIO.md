@@ -238,3 +238,16 @@ Abrir **Herramientas de vista y proyecto → Inspección y montaje CAD**:
 - Medir cara/arista: tocar la entidad para consultar área, longitud o círculo exacto B-Rep. Ángulo: tocar dos caras compatibles.
 - Alinear: en Conjunto seleccionar primero una cara plana/cilíndrica de la instancia móvil y luego la fija. La colocación centra referencias y enfrenta normales planas o hace coincidir ejes cilíndricos. Separación y giro adicional se aplican al preparar la vista previa. Aplicar confirma y permite deshacer; Cancelar/Escape restaura. No actúa sobre instancias fijas, relacionadas o con acciones; no detecta automáticamente colisiones durante la vista previa: revisar interferencias después de aplicar.
 
+
+
+## Fabricación 0.5.0
+
+**DXF láser** o **DXF láser R12** abre el preparador. Elegir pieza y cara; comprobar dimensiones, huecos y orientación de la vista previa. En modo Pieza se puede elegir una cara plana del modelo. Si el sólido tiene rebajes/espesor variable, revisar antes de habilitar su exportación individual. El lote excluye esos casos y los identifica en `listado.csv`; no los omite silenciosamente.
+
+**Descargar lote del proyecto** genera un ZIP con un DXF por pieza del catálogo, CSV y notas. Cantidad: instancias del conjunto o 1 si no está instanciada. Material/espesor ingresados se aplican como declaración del lote; separar lotes por material/espesor si son distintos. No hay nesting; cada perfil está en origen local (0,0), milímetros y escala 1:1. Compensar kerf en el CAM de la cortadora.
+
+**Esfera** está en Operaciones. Diámetro y centro aceptan expresiones; elegir Agregar o Cortar. Se guarda y se mueve como las demás operaciones. Una superficie curva necesita otro proceso para fabricación: el preparador no convierte una esfera en una chapa.
+
+En **Engranaje → Dentado**, el juego reduce el espesor de esa rueda sobre el primitivo; el juego del par depende de ambas ruedas y de la distancia entre centros. Cabeza/pie son coeficientes multiplicados por el módulo. En **Medición teórica** elegir diámetro y salto de dientes; el diámetro debe estar en la zona de evolvente. Ver referencias dibuja círculos primitivo/base/exterior/pie y una cuerda de espesor. No confundir cálculo teórico con medida sobre segmentos del sólido discretizado.
+
+En **Herramientas de vista y proyecto → Inspección y montaje CAD** están ángulos por 3 puntos, por aristas, por caras/ejes y distancias mínimas. Para 3 puntos: extremo, vértice, extremo; esos puntos se seleccionan sobre la malla. Las consultas de caras/aristas usan B-Rep. Escape cancela.

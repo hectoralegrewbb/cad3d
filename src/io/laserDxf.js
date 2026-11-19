@@ -1,3 +1,4 @@
+import {validateLaserEntities} from '../core/laserOutline.js';
 // DXF para corte láser: geometría 1:1 en mm, sin cotas ni cajetín, solo capa(s) de corte.
 // Entrada: { circles: [{ layer, x, y, r }], polylines: [{ layer, closed, vertices: [{ x, y, bulge }] }] } (bulge = tan(ángulo/4), + antihorario).
 // - 'r2000': LWPOLYLINE cerrada con arcos (un contorno por pieza: el láser lo toma sin unir segmentos).
@@ -27,11 +28,13 @@ function header(layers, version) {
   return out;
 }
 
-export function laserEntitiesToDxf({ circles = [], polylines = [] }, { format = 'r2000' } = {}) {
+export function laserEntitiesToDxf({ circles = [], polylines = [], order }, { format = 'r2000' } = {}) {
+  if(!['r2000','r12'].includes(format))throw new Error('Formato DXF no compatible.');
+  validateLaserEntities({circles,polylines});
   const layers = [...new Set([...circles, ...polylines].map((item) => item.layer ?? 'CORTE'))];
   const out = header(layers, format === 'r12' ? 'AC1009' : 'AC1015');
-  circles.forEach((c) => out.push('0', 'CIRCLE', '8', c.layer ?? 'CORTE', '10', f(c.x), '20', f(c.y), '30', '0', '40', f(c.r)));
-  polylines.forEach((poly) => {
+  const emitCircle=c=>out.push('0', 'CIRCLE', '8', c.layer ?? 'CORTE', '10', f(c.x), '20', f(c.y), '30', '0', '40', f(c.r));
+  const emitPoly=poly=>{
     const layer = poly.layer ?? 'CORTE';
     const pts = poly.vertices;
     if (format === 'r2000') {
@@ -48,7 +51,8 @@ export function laserEntitiesToDxf({ circles = [], polylines = [] }, { format = 
         out.push('0', 'ARC', '8', layer, '10', f(arc.center.x), '20', f(arc.center.y), '30', '0', '40', f(arc.radius), '50', f(arc.start), '51', f(arc.end));
       } else out.push('0', 'LINE', '8', layer, '10', f(p.x), '20', f(p.y), '30', '0', '11', f(q.x), '21', f(q.y), '31', '0');
     }
-  });
+  };
+  if(order){const seen=new Set();if(order.length!==circles.length+polylines.length)throw new Error('Orden de contornos inválido.');for(const entry of order){const key=entry.type+':'+entry.index,list=entry.type==='circle'?circles:entry.type==='polyline'?polylines:null;if(!list||!Number.isInteger(entry.index)||!list[entry.index]||seen.has(key))throw new Error('Orden de contornos inválido.');seen.add(key);if(entry.type==='circle')emitCircle(list[entry.index]);else emitPoly(list[entry.index]);}}else{circles.forEach(emitCircle);polylines.forEach(emitPoly);}
   out.push('0', 'ENDSEC', '0', 'EOF');
   return out.join('\n');
 }

@@ -232,3 +232,14 @@ button:focus-visible,summary:focus-visible,[tabindex]:focus-visible { outline:2p
 
 .cad-tools { flex-basis:100%; width:100%; min-width:0; box-sizing:border-box; }
 .cad-tools-body .row-wrap { flex-wrap:wrap; }
+
+.fabrication-modal { width:min(54rem,calc(100vw - 1rem)); max-height:calc(100dvh - 1rem); overflow:auto; box-sizing:border-box; }
+.fabrication-controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr)); gap:.6rem; }
+.fabrication-controls select,.fabrication-controls input { max-width:100%; min-width:0; box-sizing:border-box; }
+.laser-preview { display:block; width:100%; height:clamp(10rem,30dvh,22rem); background:#18202b; border:1px solid #405368; border-radius:.4rem; }
+.fabrication-modal .btn:disabled { opacity:.5;cursor:not-allowed; }
+.fabrication-modal .btn:focus-visible { outline:2px solid #6fc8ff;outline-offset:2px; }
+.fabrication-modal .btn:hover:not(:disabled) { filter:brightness(1.12); }
+.fabrication-modal .btn:active { filter:brightness(.88); }
+
+.laser-overlay[hidden] { display:none; }

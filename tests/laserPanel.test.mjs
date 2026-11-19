@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {openLaserPanel} from '../src/ui/laserPanel.js';
+import {TestElement,testDocument,flush} from './domHarness.mjs';
+globalThis.document=testDocument();document.body=new TestElement('body');document.createElementNS=(ns,tag)=>new TestElement(tag);TestElement.prototype.remove=function(){const p=this.parentElement;if(p)p.children=p.children.filter(n=>n!==this);};
+const points=[[0,0,0],[20,0,0],[20,10,0],[0,10,0]];
+const outline={frame:{origin:[0,0,0],u:[1,0,0],v:[0,1,0]},loops:[{outer:true,items:points.map((p,i)=>({type:'line',p0:p,p1:points[(i+1)%4]}))}],assessment:{thickness:3,prismatic:true,reason:'Perfil plano'}};
+const saved=[],packages=[];let complex=false;
+const hooks={activeId:'p1',parts:()=>[{id:'p1',name:'Chapa',quantity:2},{id:'p2',name:'Esfera',quantity:1}],document:async id=>{if(id==='p2')throw new Error('Sin caras planas');return {faces:[{index:0,area:200,normal:[0,0,1]}],outline:structuredClone({...outline,assessment:{...outline.assessment,prismatic:!complex}})};},saveFile:(name,text)=>saved.push({name,text}),saveBundle:files=>packages.push(files),cancelPick(){},pickFace(){}};
+const panel=await openLaserPanel(hooks);const find=text=>{const b=document.body.querySelectorAll('button').find(b=>b.textContent===text);assert.ok(b,text);return b;};
+assert.equal(find('Descargar DXF de esta pieza').disabled,false);find('Descargar DXF de esta pieza').click();assert.ok(saved[0].text.includes('AC1015'));
+find('Descargar lote del proyecto (ZIP)').click();await flush();assert.equal(packages.length,1);assert.equal(packages[0].filter(f=>f.name.endsWith('.dxf')).length,1,'no incluir la esfera en el lote');assert.match(packages[0].find(f=>f.name==='listado.csv').text,/NO_EXPORTADA/);panel.close();assert.equal(document.body.children.length,0);
+complex=true;const panel2=await openLaserPanel(hooks);assert.equal(find('Descargar DXF de esta pieza').disabled,true,'un sólido con rebajes exige revisión explícita');const checks=document.body.querySelectorAll('input');checks.at(-1).checked=true;checks.at(-1).dispatchEvent(new Event('change'));assert.equal(find('Descargar DXF de esta pieza').disabled,false);panel2.close();
+console.log('laserPanel: vista previa, descarga, lote con exclusiones y revisión de perfiles complejos OK (sin layout)');

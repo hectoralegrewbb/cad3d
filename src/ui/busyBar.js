@@ -1,5 +1,6 @@
 // Barra de actividad del motor: aparece si un trabajo tarda más de `delay` ms, muestra qué se calcula y el tiempo, y permite cancelar.
 const labels = {
+  laserDocument:'Preparando pieza para corte',laserFaces:'Leyendo caras de fabricación',laserOutline:'Preparando perfil de corte',measureEntities:'Midiendo separación',inspectEntity:'Midiendo entidad',
   weldAssembly: 'Uniendo segmentos',
   importStep: 'Importando sólido STEP',
   build: 'Reconstruyendo pieza',

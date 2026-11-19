@@ -25,3 +25,8 @@ Controles dentro del panel existente, sin nuevos anchos fijos. Progreso nativo c
 ## 0.3.0
 
 Herramientas agrupadas dentro del panel fluido existente, sin anchos fijos nuevos. Cálculos con etapa, resultados con aria-live, errores recuperables, botones de aplicar/exportar deshabilitados sin datos, Escape cancela y restaura vista previa. No se agregan animaciones. Revisión visual 320/768/1024+ pendiente por acceso del navegador al servidor local.
+
+
+## Preparador de fabricación
+
+Modal fluido con controles en grilla adaptable, vista SVG escalable, progreso por pieza, estado aria-live, botones deshabilitados sin datos, errores con recuperación y cierre disponible. Escape vuelve de selección en modelo o cierra. La revisión de perfil complejo es una decisión de fabricación explícita. No se agregan animaciones. Hover, foco, active y disabled siguen los controles existentes con ajustes locales.
