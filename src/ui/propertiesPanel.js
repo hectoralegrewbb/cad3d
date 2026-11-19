@@ -575,6 +575,7 @@ export class PropertiesPanel {
     if (entity.t === 'ellipse') body.push(num('Centro X', 'x'), num('Centro Y', 'y'), num('Eje X (total)', 'w'), num('Eje Y (total)', 'h'), num('Ángulo', 'angle', '°'));
     if (entity.t === 'slot') body.push(num('Centro X', 'x'), num('Centro Y', 'y'), num('Largo total', 'length'), num('Ancho', 'width'), num('Ángulo', 'angle', '°'));
     if (entity.t === 'poly') {
+      body.push(el('p', { class: 'muted', text: entity.closed === false ? 'Perfil abierto: uní los extremos o usá Cerrar en el editor.' : 'Perfil cerrado' }));
       entity.pts.forEach((point, index) => {
         const setPoint = (patch) => update({ pts: entity.pts.map((p, i) => (i === index ? { ...p, ...patch } : p)) });
         body.push(
@@ -585,7 +586,7 @@ export class PropertiesPanel {
             exprInput(point.bulge ?? 0, params, (value) => setPoint({ bulge: value }), { unit: 'arco' }),
             exprInput(point.r ?? 0, params, (value) => setPoint({ r: value }), { unit: 'R' }),
             exprInput(point.c ?? 0, params, (value) => setPoint({ c: value }), { unit: 'C' }),
-            entity.pts.length > 3 ? el('button', { class: 'mini danger', title: 'Quitar vértice', onClick: () => update({ pts: entity.pts.filter((_, i) => i !== index) }) }, '✕') : el('span'),
+            entity.pts.length > (entity.closed === false ? 2 : 3) ? el('button', { class: 'mini danger', title: 'Quitar vértice', onClick: () => update({ pts: entity.pts.filter((_, i) => i !== index) }) }, '✕') : el('span'),
           ),
         );
       });

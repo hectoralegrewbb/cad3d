@@ -1,3 +1,4 @@
+import { segmentGeometry, segmentPoint, nearestOnSegment, segmentIntersections } from '../core/sketchEditing.js';
 import { cornerOutline } from '../kernel/geometry2d.js';
 // Sistema de imanes del boceto: puntos notables (vértice, centro, punto medio, cuadrante, intersección, origen),
 // guías de ángulo (cada 45°) desde el punto de anclaje y alineaciones con puntos existentes. Puro y sin DOM.
@@ -67,6 +68,7 @@ export function collectGeometry(entities, reference = null) {
   const points = [{ x: 0, y: 0, kind: 'origin' }];
   const segments = [];
   const circles = [];
+  const arcs = [];
   let isRef = false;
   const push = (x, y, kind) => points.push({ x, y, kind, ref: isRef });
   const edge = (p, q, mid = true) => {
@@ -131,7 +133,11 @@ export function collectGeometry(entities, reference = null) {
       entity.pts.forEach((point, i) => {
         const next = entity.pts[(i + 1) % entity.pts.length];
         push(point.x, point.y, 'vertex');
+        if (entity.closed === false && i === entity.pts.length - 1) return;
         if (!point.bulge) edge([point.x, point.y], [next.x, next.y]);
+        else {
+          try { const arc = { ...segmentGeometry(point, next, point.bulge), ref: isRef }; arcs.push(arc); const mid = segmentPoint(arc, .5); push(mid.x, mid.y, 'midpoint'); push(arc.c.x, arc.c.y, 'center'); } catch { /* Invalid draft: no snap. */ }
+        }
       });
     }
   };
@@ -166,11 +172,13 @@ export function collectGeometry(entities, reference = null) {
       intersections.push(...circleCircle(circles[i], circles[j]));
     }
   }
+  const arcPeers = [...segments.filter(s => Math.hypot(s.b[0]-s.a[0],s.b[1]-s.a[1]) > 1e-6).map(s => ({ kind:'line', a:{x:s.a[0],y:s.a[1]}, b:{x:s.b[0],y:s.b[1]}, ref:s.ref })), ...circles.map(c => ({ kind:'arc', c:{x:c.x,y:c.y}, r:c.r, start:0, sweep:2*Math.PI, a:{x:c.x+c.r,y:c.y}, b:{x:c.x+c.r,y:c.y}, full:true, ref:c.ref }))];
+  arcs.forEach((arc,i) => [...arcPeers,...arcs.slice(i+1)].forEach(other => { if (!(arc.ref && other.ref)) intersections.push(...segmentIntersections(arc,other).map(p => [p.x,p.y])); }));
   intersections.forEach(([x, y]) => {
     // Las esquinas ya son vértices: solo cuentan los cruces que no coinciden con un punto existente.
     if (!points.some((p) => Math.hypot(p.x - x, p.y - y) < 1e-6)) push(x, y, 'intersection');
   });
-  return { points, segments, circles };
+  return { points, segments, circles, arcs };
 }
 
 export const guideAngles = [0, 45, 90, 135, 180, 225, 270, 315];
@@ -213,6 +221,7 @@ export function computeSnap(cursor, geometry, pxPerUnit, { anchor = null, snapPo
       const dist = Math.abs(d - circle.r);
       if (d > 1e-9 && dist < tol && (!onEdge || dist < onEdge.dist)) onEdge = { x: circle.x + ((cx - circle.x) / d) * circle.r, y: circle.y + ((cy - circle.y) / d) * circle.r, dist, ref: circle.ref };
     });
+    (geometry.arcs ?? []).forEach(arc => { const hit=nearestOnSegment(arc,{x:cx,y:cy}); if(hit.distance<tol&&(!onEdge||hit.distance<onEdge.dist))onEdge={x:hit.point.x,y:hit.point.y,dist:hit.distance,ref:arc.ref}; });
     if (onEdge) return { ...result, x: onEdge.x, y: onEdge.y, kind: 'edge', label: snapLabels.edge + (onEdge.ref ? ' · referencia' : ''), marker: { x: onEdge.x, y: onEdge.y, kind: 'edge' } };
   }
 

@@ -109,3 +109,7 @@ Prueba de controles adicional: `tests/cadTools.test.mjs` y soporte `tests/domHar
 Nuevos: `core/measurement.js`, `kernel/sphereGeometry.js`, `ui/laserPanel.js` (bajo `src/`); pruebas `fabrication`, `fabricationPanel` y `laserPanel`.
 
 Modificados: composición `app/main.js`; `core/{commands,laserOutline,partModel,validation}.js`; `io/laserDxf.js`; `kernel/{gearGeometry,inspection,kernelService,laserOutline,partBuilder}.js`; `ui/{cadTools,featureTree,propertiesPanel,busyBar}.js`; estilos, HTML, manifiestos y documentación. Sin cambios en simulación de aire, sensores ni control de movimiento.
+
+## Entrega 0.6.0
+
+Nueva API `src/core/sketchEditing.js` y tres archivos de pruebas `tests/sketchEditing*.test.mjs`. Integraciones puntuales: comandos/modelo/validación/referencias, geometry2d/partBuilder, sketchEditor/sketchSnap/propertiesPanel, app/main, index/styles y metadatos de versión. Documentación de APIs, uso, validación, seguridad y límites actualizada. Sin modificaciones de vendor, infraestructura ni simulación física.

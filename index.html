@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="elcad-version" content="0.5.0" />
+  <meta name="elcad-version" content="0.6.0" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ElCad 3D — modelador de piezas</title>
   <link rel="stylesheet" href="styles.css" />
@@ -13,7 +13,7 @@
     <div><h2>Preparando ElCad 3D</h2><p id="bootText">Cargando el motor CAD y el proyecto local…</p><div class="boot-track"></div><button id="bootRetry" class="btn" hidden>Reintentar carga</button></div>
   </div>
   <header class="topbar">
-    <strong class="brand">ElCad <span>3D</span> <small aria-label="Versión 0.5.0">0.5.0</small></strong>
+    <strong class="brand">ElCad <span>3D</span> <small aria-label="Versión 0.6.0">0.6.0</small></strong>
     <input id="partName" class="part-name" spellcheck="false" aria-label="Nombre de la pieza" />
     <div class="group">
       <button id="undoBtn" class="btn" title="Deshacer (Ctrl+Z)">↶</button>
@@ -87,7 +87,15 @@
           <button class="btn tool" data-sktool="circle" title="Círculo (C): 1.er clic = centro, tipeá Ø (o r12 = radio)">◯ Círculo</button>
           <button class="btn tool" data-sktool="ellipse" title="Elipse (E): 1.er clic = centro, tipeá los dos ejes">⬯ Elipse</button>
           <button class="btn tool" data-sktool="slot" title="Ranura (S)">⬭ Ranura</button>
-          <button class="btn tool" data-sktool="poly" title="Línea / polilínea (P o L): clic o tipeá largo y ángulo; Enter vacío o doble clic cierra">╱ Línea</button>
+          <button class="btn tool" data-sktool="poly" title="Polilínea cerrada (P): clic o tipeá largo y ángulo; Enter vacío o doble clic cierra">⬠ Polilínea</button>
+          <button class="btn tool" data-sktool="line" title="Línea abierta (L): inicio y fin o longitud y ángulo">╱ Línea</button>
+          <button class="btn tool" data-sktool="arc" title="Arco (A): inicio, punto intermedio y fin">◜ Arco</button>
+          <button class="btn tool" data-sktool="trim" title="Recortar (T): quitar el intervalo entre intersecciones">✂ Recortar</button>
+          <button class="btn tool" data-sktool="split" title="Partir (B): dividir sin quitar geometría">Partir</button>
+          <button class="btn tool" data-sktool="extend" title="Elegir límite y después extremo recto a alargar">Alargar</button>
+          <button class="btn tool" data-sktool="join" title="Unir (U): dos polilíneas con extremos coincidentes">Unir</button>
+          <button class="btn tool" data-sktool="close" title="Agregar recta de cierre a una polilínea abierta">Cerrar</button>
+          <button class="btn tool" data-sktool="explode" title="Convertir figura paramétrica en líneas y arcos editables">Descomponer</button>
           <button class="btn tool" data-sktool="polygon" title="Polígono regular (N): tuercas hexagonales, cuadradas y piezas especiales. 1.er clic = centro; tipeá medida entre caras (llave) o vértices y lados">⬡ Polígono</button>
           <button class="btn tool" data-sktool="guide" title="Guía auxiliar (G): línea infinita para ubicar objetos; no se extruye. Shift traza a 0/45/90°">┄ Guía</button>
           <button class="btn tool" data-sktool="measure" title="Medir distancia, Δx, Δy y ángulo (M)">📏 Medir</button>
@@ -102,6 +110,7 @@
           <button id="skFit" class="btn" title="Ajustar vista (F)">Ajustar</button>
           <button id="skDone" class="btn primary">✓ Terminar boceto</button>
         </div>
+        <div id="skEditStatus" class="sketch-edit-status" role="status" aria-live="polite"></div>
         <div id="skHint" class="sketch-hint"></div>
         <div id="skInput" class="sk-input" hidden></div>
       </div>

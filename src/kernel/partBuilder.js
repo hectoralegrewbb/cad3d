@@ -1,3 +1,4 @@
+import { closedSketchProfiles, validateSketchPolyline } from '../core/sketchEditing.js';
 import {sphereSpec} from './sphereGeometry.js';
 import { solveSketchConstraints } from '../core/sketchConstraints.js';
 import { gearOutline, gearSpec } from './gearGeometry.js';
@@ -60,7 +61,8 @@ export function sketchDrawing(rep, sketch, params) {
   // Las guías son líneas auxiliares para ubicar objetos: no entran en el perfil.
   const profile = sketch.entities.filter((entity) => entity.t !== 'guide');
   if (!profile.length) throw new Error(sketch.entities.length ? 'El boceto solo tiene guías auxiliares: dibujá al menos una forma' : 'El boceto está vacío');
-  const entities = solveSketchConstraints(profile.map((entity) => resolveEntity(entity, params)), sketch.constraints, params);
+  const entities = closedSketchProfiles(solveSketchConstraints(profile.map((entity) => resolveEntity(entity, params)), sketch.constraints, params));
+  entities.filter(e => e.t === 'poly' && e.closed !== undefined).forEach(validateSketchPolyline);
   const depths = nestingDepths(entities);
   const order = entities.map((entity, index) => ({ entity, depth: depths[index] })).sort((a, b) => a.depth - b.depth);
   let result = null;
@@ -76,7 +78,8 @@ export function sketchDrawing(rep, sketch, params) {
 export function sketchLayers(rep, sketch, params) {
   const profile = sketch.entities.filter((entity) => entity.t !== 'guide');
   if (!profile.length) throw new Error(sketch.entities.length ? 'El boceto solo tiene guías auxiliares: dibujá al menos una forma' : 'El boceto está vacío');
-  const entities = solveSketchConstraints(profile.map((entity) => resolveEntity(entity, params)), sketch.constraints, params);
+  const entities = closedSketchProfiles(solveSketchConstraints(profile.map((entity) => resolveEntity(entity, params)), sketch.constraints, params));
+  entities.filter(e => e.t === 'poly' && e.closed !== undefined).forEach(validateSketchPolyline);
   const depths = nestingDepths(entities);
   const fuseAll = (level) => {
     let result = null;

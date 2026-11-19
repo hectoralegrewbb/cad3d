@@ -36,7 +36,7 @@ export function validatePart(part) {
     if (f.type === 'sketch') {
       if(!Array.isArray(f.entities)||f.entities.length>100000)fail('entidades de boceto');
       const entityIds=new Set();
-      f.entities.forEach(e=>{if(!object(e)||!id(e.id)||entityIds.has(e.id)||!['rect','circle','ellipse','slot','poly','polygon','guide'].includes(e.t))fail('entidad o ID de boceto');entityIds.add(e.id);});
+      f.entities.forEach(e=>{if(!object(e)||!id(e.id)||entityIds.has(e.id)||!['rect','circle','ellipse','slot','poly','polygon','guide'].includes(e.t))fail('entidad o ID de boceto');entityIds.add(e.id);if(e.closed!==undefined&&typeof e.closed!=='boolean')fail('estado abierto/cerrado');if(e.closed===false&&(!Array.isArray(e.pts)||e.pts.length<2||e.pts.length>10000))fail('polilínea abierta');});
     }
     if(f.constraints){
       if(!Array.isArray(f.constraints)||f.constraints.length>500)fail('restricciones de boceto');

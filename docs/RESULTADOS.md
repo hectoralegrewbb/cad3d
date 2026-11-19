@@ -1,3 +1,15 @@
+# Verificación vigente — 0.6.0 (2026-11-19)
+
+Base: main `002de4a86e798434dd882d73b575a57606ec8a7b`. Node 24.22.3. **68/68 archivos de prueba aprobados** en la suite completa. Casos adicionales finales de guardar/reabrir y cierre de arco también aprobados en pruebas específicas. Sintaxis/importaciones relativas comprobadas en 160 módulos; diff sin errores de espacios.
+
+Tres archivos nuevos cubren recortar/partir/alargar/unir, tangencias y coincidencias, arcos limitados y su sentido al invertir, ausencia de relleno/cuerda fantasma, bloqueo de restricciones, rechazo de solapes/ramificaciones, guardado/lectura y undo/redo atómico. El kernel extruye una red de cuatro líneas con área exacta 200 mm², dos semicírculos como círculo y un semicírculo cerrado con recta; DXF conserva bulge y dimensiones 10×5 mm. Un perfil abierto se rechaza y el siguiente cálculo correcto funciona. La suite anterior de aire, movimiento, fabricación y biblioteca pasa.
+
+Medición orientativa local: validar un polígono de 300 segmentos tomó 22 ms; no es garantía de rendimiento de otros dispositivos. Hay límites explícitos de cantidad y geometría, con error recuperable.
+
+No se verificó visualmente GPU/layout real en esta entrega. El navegador de revisión utilizado para 0.5.0 tenía WebGL deshabilitado. Las pruebas UI de 0.6.0 simulan canvas/eventos y no sustituyen revisión responsive 320/768/1024+ ni CAM/cortadora. Los pasos manuales y limitaciones están en VERIFICACION.md y CHANGELOG.md.
+
+---
+
 # Verificación vigente — 0.5.0 (2026-11-19)
 
 Base del repositorio: `991a3f97efd31c544bb7e675ea13dd82cd6d7b0d`. Node 24.22.3.

@@ -1,3 +1,4 @@
+import { validateSketchPolyline } from './sketchEditing.js';
 import { particleConfig } from './particleConfig.js';
 import { createPart, featureDefaults, makeEntity, nextId } from './partModel.js';
 import { defaultDrawing } from '../drawing/sheetPrimitives.js';
@@ -104,6 +105,18 @@ export const commands = {
 
   removeEntity: (state, sketchId, entityId) =>
     mapFeature(state, sketchId, (sketch) => ({ ...sketch, entities: sketch.entities.filter((entity) => entity.id !== entityId), constraints: (sketch.constraints??[]).filter(c=>c.a!==entityId&&c.b!==entityId) })),
+
+  // Reemplazo atómico: un único paso de historial y ningún ID de restricción huérfano.
+  replaceSketchEntities(state, sketchId, removeIds, entities) {
+    const sketch = state.features.find(f => f.id === sketchId && f.type === 'sketch');
+    if (!sketch || !Array.isArray(removeIds) || !removeIds.length || new Set(removeIds).size !== removeIds.length || removeIds.some(id => !sketch.entities.some(e => e.id === id))) throw new Error('El boceto cambió; volvé a seleccionar');
+    if ((sketch.constraints ?? []).some(c => removeIds.includes(c.a) || removeIds.includes(c.b))) throw new Error('La figura tiene restricciones: retiralas antes de editar sus tramos');
+    if (!Array.isArray(entities) || entities.length > 10000 || sketch.entities.length - removeIds.length + entities.length > 100000) throw new Error('Demasiados tramos');
+    entities.forEach(validateSketchPolyline);
+    let next = state;
+    const added = entities.map(e => { const { id, ...data } = e; const made = makeEntity(next, data); next = { ...next, counters: made.counters }; return made.entity; });
+    return mapFeature(next, sketchId, f => ({ ...f, entities: [...f.entities.filter(e => !removeIds.includes(e.id)), ...added] }));
+  },
 
   // --- plano (hoja, vistas, cotas) ---
   updateDrawing(state, patch) {

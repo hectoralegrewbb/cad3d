@@ -79,7 +79,8 @@ export const selectorKinds = {
   near: 'Aristas elegidas en el visor',
 };
 
-// Tipos de entidad de un boceto (todas cerradas; el boceto se rellena por anidación par/impar).
+// Entidades de boceto: figuras cerradas por defecto; poly admite closed:false para líneas/arcos abiertos.
+// Los contornos cerrados se rellenan por anidación par/impar. Se conserva el default legacy.
 export const entityDefaults = {
   rect: () => ({ t: 'rect', x: 0, y: 0, w: 40, h: 20, centered: true }),
   circle: () => ({ t: 'circle', x: 0, y: 0, d: 20 }),

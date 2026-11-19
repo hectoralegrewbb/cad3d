@@ -55,3 +55,9 @@ No se sustituye el kernel ni la infraestructura de despliegue. La esfera usa un 
 Fabricación trabaja sobre copias del proyecto y comprueba su firma antes de consultar y descargar; una edición invalida el resultado. La cara se extrae del B-Rep completo, incluyendo cortes. Se estima espesor por proyección de vértices y se compara volumen con área×espesor: es una comprobación necesaria de consistencia, no una demostración de que el sólido sea una extrusión. Rebajes, sólidos separados y espesor variable requieren revisión. Los elipses/splines se aproximan mediante muestreo adaptativo con objetivo 0,02 mm y límite de 4096 puntos por arista, con aviso.
 
 No hay unfolding de chapa, nesting ni compensación de kerf. Una esfera no genera un perfil de láser fabricable; se exporta como sólido mediante STEP/STL. El CSV registra piezas excluidas y distingue espesor declarado de geometría.
+
+## Bocetos abiertos 0.6.0
+
+`poly.closed === false` representa una cadena abierta (mínimo dos vértices). Un arco es un tramo con bulge. Las entidades anteriores sin ese campo siguen cerradas y conservan sus expresiones. Descomponer/recortar materializa la figura modificada en coordenadas resueltas y pierde su parametrización original; se informa antes de operar y se recupera con deshacer.
+
+Las ediciones se aplican por `commands.replaceSketchEntities` en una sola transacción. El comando verifica IDs, restricciones, cantidad y geometría antes de devolver estado nuevo. No borra restricciones silenciosamente. El kernel encadena únicamente extremos coincidentes a 1e-6 mm y rechaza redes abiertas o ambiguas; no selecciona regiones automáticamente. La validación de perfiles nuevos ocurre antes de crear la geometría nativa.

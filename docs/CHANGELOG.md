@@ -1,3 +1,15 @@
+## 0.6.0 — 2026-11-19 — Edición por segmentos en bocetos
+
+Alcance aprobado: core (API geométrica pura y reemplazo atómico), kernel (ensamblado/validación de perfiles), ui y composición app. Base main `002de4a86e798434dd882d73b575a57606ec8a7b`. Sin cambios en partículas, aire o movimiento.
+
+- Líneas abiertas y arcos de tres puntos representados como `poly` con `closed:false`; la ausencia de `closed` conserva el comportamiento cerrado anterior.
+- Recortar por intersecciones analíticas, partir sin eliminar material, alargar extremos rectos hacia un límite finito, unir polilíneas, cerrar por recta y descomponer figuras en tramos.
+- Resaltado del intervalo a eliminar, instrucciones/errores persistentes, cancelación con Esc y un solo paso de deshacer por operación.
+- Arcos conservados mediante bulge en edición, unión, extrusión y DXF del sólido. Imanes sobre el arco real, sin atraer su mitad ausente ni dibujar cuerdas de cierre ficticias.
+- Extremos coincidentes se encadenan para extrusión sin rellenar huecos; redes abiertas/ramificadas, autointersecciones y solapes se rechazan con mensaje. Edición de figuras con restricciones se bloquea sin eliminarlas.
+- Límites de geometría y cantidad evitan operaciones sin cota. No se promete un solver general de regiones.
+- Pendiente: recorte de elipses/splines, alargado de arcos, límites auxiliares infinitos, tolerancia de unión configurable con previsualización del ajuste, selección de regiones entre cruces, desfase y booleanas 2D. La importación DXF conserva su tratamiento anterior de cadenas abiertas. Deuda existente: búsqueda cuadrática de imanes en bocetos muy grandes; no se refactoriza fuera de este alcance.
+
 ## 0.5.0 — 2026-11-19 — Fabricación, engranajes y esferas
 
 Alcance aprobado: `core`, `kernel`, `io`, `ui`, `viewer` mediante sus APIs existentes y composición en `app`. Se conserva la estructura y el formato 1 del proyecto. Base: main `991a3f97efd31c544bb7e675ea13dd82cd6d7b0d`; no se modifican los módulos de aire/movimiento.

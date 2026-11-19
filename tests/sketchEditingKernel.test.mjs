@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import { loadKernel } from '../src/kernel/occNode.js';
+import { buildPart } from '../src/kernel/partBuilder.js';
+import { commands } from '../src/core/commands.js';
+import { createPart } from '../src/core/partModel.js';
+import { editSketchSegment, pickSketchSegment } from '../src/core/sketchEditing.js';
+import { loopsToLaserEntities } from '../src/core/laserOutline.js';
+import { createKernelService } from '../src/kernel/kernelService.js';
+const rep=await loadKernel();
+const line=(a,b,bulge=0)=>({t:'poly',closed:false,pts:[{x:a[0],y:a[1],bulge},{x:b[0],y:b[1],bulge:0}]});
+const partOf=entities=>{let p=commands.addFeature(createPart('Perfil editable'),'sketch');for(const e of entities)p=commands.addEntity(p,'sketch1',e);return commands.addFeature(p,'extrude',{sketch:'sketch1',depth:3});};
+const areaOf=p=>{const b=buildPart(rep,p);assert.equal(b.results.extrude1.status,'ok',b.results.extrude1.error);const volume=rep.measureVolume(b.shape);b.shape.delete();return volume/3;};
+const square=[line([0,0],[20,0]),line([20,0],[20,10]),line([20,10],[0,10]),line([0,10],[0,0])];
+assert.ok(Math.abs(areaOf(partOf(square))-200)<1e-5,'exact closed assembly of open lines');
+let b=buildPart(rep,partOf(square.slice(0,3)));assert.equal(b.results.extrude1.status,'error');assert.match(b.results.extrude1.error,/abierto/);b.shape?.delete();
+let p=partOf([line([-5,0],[5,0],1),line([5,0],[-5,0],1)]);assert.ok(Math.abs(areaOf(p)-Math.PI*25)<1e-5,'two semicircles preserve exact area');
+let source=[{id:'c',t:'circle',x:0,y:0,d:10},{id:'cut',...line([-10,0],[10,0])}];
+const hit=pickSketchSegment(source,{x:0,y:5},.1),edit=editSketchSegment(source,hit,'trim');
+p=partOf([...edit.entities,line([-5,0],[5,0])]);assert.ok(Math.abs(areaOf(p)-Math.PI*25/2)<1e-5,'trimmed circle closed by line');
+const service=createKernelService(rep),doc=service.handle('laserDocument',{part:p}),laser=loopsToLaserEntities(doc.outline);
+assert.ok(Math.abs(laser.width-10)<1e-5);assert.ok(Math.abs(laser.height-5)<1e-5);assert.ok(laser.polylines.some(poly=>poly.vertices.some(v=>Math.abs(v.bulge)>0)),'laser arc remains analytical');
+// Failed profile does not poison the next build.
+assert.ok(Math.abs(areaOf(partOf(square))-200)<1e-5);
+const crossed=partOf([{t:'poly',closed:true,pts:[[0,0],[10,10],[0,10],[10,0]].map(([x,y])=>({x,y}))}]);b=buildPart(rep,crossed);assert.equal(b.results.extrude1.status,'error');b.shape?.delete();
+console.log('sketchEditingKernel: open profile recovery, exact arc/line extrusion and laser geometry OK');
