@@ -113,3 +113,7 @@ Modificados: composición `app/main.js`; `core/{commands,laserOutline,partModel,
 ## Entrega 0.6.0
 
 Nueva API `src/core/sketchEditing.js` y tres archivos de pruebas `tests/sketchEditing*.test.mjs`. Integraciones puntuales: comandos/modelo/validación/referencias, geometry2d/partBuilder, sketchEditor/sketchSnap/propertiesPanel, app/main, index/styles y metadatos de versión. Documentación de APIs, uso, validación, seguridad y límites actualizada. Sin modificaciones de vendor, infraestructura ni simulación física.
+
+## Entrega 0.6.1
+
+Cambios puntuales en `src/core/commands.js`, `src/core/validation.js`, `src/ui/propertiesPanel.js`, `src/app/main.js`, `styles.css`; versión/README/documentación. Pruebas nuevas: `tests/entityGroups.test.mjs` y `tests/entityGroupsPanel.test.mjs`. Kernel, formato principal versión 1, vendor y simulaciones sin cambios.

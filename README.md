@@ -1,4 +1,4 @@
-# ElCad 3D 0.6.0 — edición de bocetos
+# ElCad 3D 0.6.1 — repeticiones agrupadas
 
 - **DXF láser** abre selección de pieza y cara, vista previa 2D y lote ZIP con DXF separados y cantidades. R2000 o R12, 1:1 en mm, arcos/círculos conservados. Kerf en CAM. Perfiles complejos requieren revisión; no se desarrolla chapa automáticamente.
 - **Engranaje**: juego por rueda, coeficientes de cabeza/pie, medición teórica por diámetro y salto de dientes; referencias en el modelo.

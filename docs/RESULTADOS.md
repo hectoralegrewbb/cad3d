@@ -1,3 +1,13 @@
+# Verificación vigente — 0.6.1 (2026-11-19)
+
+Base main `05be8e134d1326d2291397a89c38b610f8450b13`. Node 24.22.3. **70/70 archivos de prueba aprobados** en la suite completa. Casos finales específicos adicionales de undo/redo de renombrado/desagrupado también aprobados. Sintaxis/importaciones comprobadas en 160 módulos; diff sin errores.
+
+Las pruebas nuevas cubren carpetas de fila/círculo/elipse, original incluido, guardado/reapertura, renombrado, desagrupado, limpieza al borrar/reemplazar y unión entre grupos, repetir un miembro, validación de referencias, contador e historial. El panel conserva el plegado tras rerender, separa estados por pieza, crea formularios de miembros sólo al abrir y renderiza nombres como texto. El sólido B-Rep conserva exactamente volumen y caja antes/después de desagrupar. La suite anterior de aire, partículas, movimiento, fabricación y edición de bocetos pasa.
+
+Las pruebas del panel usan DOM simulado, sin layout ni GPU; revisión visual responsive y de teclado en navegador real pendiente. Pasos manuales en VERIFICACION.md. No se agrupan retroactivamente las entidades de proyectos anteriores ni se agrega asociatividad paramétrica entre copias.
+
+---
+
 # Verificación vigente — 0.6.0 (2026-11-19)
 
 Base: main `002de4a86e798434dd882d73b575a57606ec8a7b`. Node 24.22.3. **68/68 archivos de prueba aprobados** en la suite completa. Casos adicionales finales de guardar/reabrir y cierre de arco también aprobados en pruebas específicas. Sintaxis/importaciones relativas comprobadas en 160 módulos; diff sin errores de espacios.

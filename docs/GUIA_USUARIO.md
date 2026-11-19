@@ -268,3 +268,11 @@ Abrí un boceto. La barra incluye Línea (L), Arco (A), Recortar (T), Partir (B)
 Esc cancela; Ctrl+Z/Ctrl+Y deshacen/rehacen una operación completa. Si hay restricciones sobre la figura, retiralas explícitamente antes de editarla. Una red abierta o ramificada no se extruye; uní/cerrá/corregí sus extremos. Las líneas que forman un lazo no ambiguo se encadenan al extruir sin ajustar huecos. El DXF láser se obtiene de la cara plana del sólido resultante; sigue sin desarrollar chapa.
 
 No se incluye recorte de elipses/splines, alargado de arcos ni elección automática de regiones entre cruces.
+
+## Repeticiones agrupadas (0.6.1)
+
+Al usar **Repetir (fila · círculo · elipse) → Crear copias**, el panel muestra una carpeta como **Repetición circular · 24 elementos**, inicialmente plegada. Clic o Enter sobre el encabezado despliega el grupo; cada miembro conserva sus controles individuales. Volvé a plegar el encabezado para ocultarlos todos juntos.
+
+Dentro de la carpeta podés cambiar el nombre o usar **Desagrupar**, que mantiene todas las entidades. Borrar un miembro actualiza el contador; borrar el último elimina la carpeta. El grupo se guarda al guardar el proyecto; el plegado se conserva durante la sesión. Ctrl+Z/Ctrl+Y deshacen y rehacen los cambios del documento.
+
+Las repeticiones anteriores a 0.6.1 no se agrupan automáticamente. Una carpeta organiza las copias; editar el original no actualiza automáticamente el resto. Repetir un miembro lo mueve a una carpeta nueva con sus copias.

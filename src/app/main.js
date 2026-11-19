@@ -843,6 +843,9 @@ const paramsPanel = new ParamsPanel(byId('paramsPanel'), {
   onRemove: (name) => apply((state) => commands.removeParam(state, name)),
 });
 const props = new PropertiesPanel(byId('props'), {
+  getEntityScope: () => project.activePartId,
+  onRenameEntityGroup: (sketchId, groupId, name) => apply(state => commands.renameEntityGroup(state, sketchId, groupId, name)),
+  onUngroupEntities: (sketchId, groupId) => apply(state => commands.ungroupEntities(state, sketchId, groupId)),
   onUpdate: (id, patch) => apply((state) => commands.updateFeature(state, id, patch)),
   onRefresh: () => renderPanels(),
   onGearMeasure:(id,options)=>{
@@ -891,8 +894,8 @@ const props = new PropertiesPanel(byId('props'), {
   onPattern: (sketchId, entity, config) => {
     try {
       const { copies, original } = patternEntities(entity, config, lastBuild?.params ?? {});
-      apply((state) => commands.addEntities(state, sketchId, copies, original && Object.keys(original).length ? original : null, entity.id));
-      setStatus(`${copies.length} copia(s) creada(s)`);
+      apply((state) => commands.addEntityPattern(state, sketchId, copies, original && Object.keys(original).length ? original : null, entity.id, config.kind));
+      setStatus(`${copies.length + 1} elementos agrupados. Desplegá la repetición en Propiedades para editarlos.`);
     } catch (error) {
       setStatus(error.message, true);
     }
@@ -1898,6 +1901,7 @@ function setPartColor(id, color) {
 function activateProject(data) {
   viewer.restoreItems();
   data=projects.parseProject(JSON.stringify(data));
+  if (!restoringJournal) props.resetEntityUi();
   localSaveBlocked=false;
   closeScenePanels();
   closeSketch();

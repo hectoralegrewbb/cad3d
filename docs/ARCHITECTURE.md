@@ -61,3 +61,9 @@ No hay unfolding de chapa, nesting ni compensación de kerf. Una esfera no gener
 `poly.closed === false` representa una cadena abierta (mínimo dos vértices). Un arco es un tramo con bulge. Las entidades anteriores sin ese campo siguen cerradas y conservan sus expresiones. Descomponer/recortar materializa la figura modificada en coordenadas resueltas y pierde su parametrización original; se informa antes de operar y se recupera con deshacer.
 
 Las ediciones se aplican por `commands.replaceSketchEntities` en una sola transacción. El comando verifica IDs, restricciones, cantidad y geometría antes de devolver estado nuevo. No borra restricciones silenciosamente. El kernel encadena únicamente extremos coincidentes a 1e-6 mm y rechaza redes abiertas o ambiguas; no selecciona regiones automáticamente. La validación de perfiles nuevos ocurre antes de crear la geometría nativa.
+
+## Carpetas de entidades 0.6.1
+
+Un boceto puede incluir `entityGroups: [{ id, name, kind, entityIds }]`, con pertenencia exclusiva por entidad. No se introduce un árbol geométrico ni copias enlazadas. Crear la repetición y su grupo es una única transacción mediante `addEntityPattern`, que reutiliza `addEntities`. IDs de copias recibidos se descartan para conservar asignación propia.
+
+El plegado de carpetas y tarjetas vive en un Map del panel, con clave pieza/boceto/elemento, fuera del documento e historial. Se conserva durante refrescos y undo/redo; abrir otro proyecto limpia ese estado. El kernel ignora estos metadatos; se verifica igualdad de volumen y caja antes/después de desagrupar.

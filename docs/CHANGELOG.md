@@ -1,3 +1,14 @@
+## 0.6.1 — 2026-11-19 — Carpetas plegables para repeticiones
+
+Alcance aprobado: UI de propiedades, comandos/validación de metadatos y composición app. Base main `05be8e134d1326d2291397a89c38b610f8450b13`. No se modifica el kernel, aire ni movimiento.
+
+- Repetir en fila/círculo/elipse crea una carpeta con el original y las copias. Las entidades conservan su edición individual, geometría e IDs propios.
+- Carpetas plegadas inicialmente, contador de miembros, nombre editable y Desagrupar sin borrar geometría. Formularios de miembros creados al desplegar; estado de plegado preservado al refrescar el panel y separado por pieza/boceto.
+- Reemplazar o borrar miembros mantiene las referencias del grupo y elimina carpetas vacías. Si todos los tramos reemplazados pertenecen al mismo grupo, sus reemplazos permanecen allí; una unión entre grupos queda independiente.
+- Repetir un miembro ya agrupado lo pasa al grupo nuevo con sus copias; el resto del grupo anterior permanece. Copiar una entidad individual no hereda pertenencia.
+- Metadatos opcionales validados y guardados con el boceto; undo/redo completo de creación, renombrado y desagrupado. Archivos anteriores sin grupos conservados, sin inferir agrupaciones por semejanza.
+- Pendiente: agrupación manual de repeticiones creadas antes de 0.6.1 y edición paramétrica asociativa de una matriz. La carpeta es organizativa y no recalcula automáticamente las copias al editar el original. Revisión visual responsive/GPU pendiente.
+
 ## 0.6.0 — 2026-11-19 — Edición por segmentos en bocetos
 
 Alcance aprobado: core (API geométrica pura y reemplazo atómico), kernel (ensamblado/validación de perfiles), ui y composición app. Base main `002de4a86e798434dd882d73b575a57606ec8a7b`. Sin cambios en partículas, aire o movimiento.

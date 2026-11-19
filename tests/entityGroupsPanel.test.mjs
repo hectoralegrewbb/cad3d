@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {PropertiesPanel} from '../src/ui/propertiesPanel.js';
+import {commands} from '../src/core/commands.js';
+import {createPart} from '../src/core/partModel.js';
+import {TestElement,testDocument} from './domHarness.mjs';
+globalThis.document=testDocument();
+let part=commands.addFeature(createPart('Panel'),'sketch'),scope='p1';part=commands.addEntity(part,'sketch1',{t:'circle',x:10,y:0,d:2});part=commands.addEntityPattern(part,'sketch1',[{t:'circle',x:20,y:0,d:2},{t:'circle',x:30,y:0,d:2}],null,'e1','row');
+const root=new TestElement(),panel=new PropertiesPanel(root,{getEntityScope:()=>scope,onUpdate(){},onAddEntity(){},onPattern(){},onEditSketch(){},onRemoveEntity(sk,id){part=commands.removeEntity(part,sk,id);render();},onRenameEntityGroup(sk,id,name){part=commands.renameEntityGroup(part,sk,id,name);render();},onUngroupEntities(sk,id){part=commands.ungroupEntities(part,sk,id);render();}});
+const render=()=>panel.render(part,{}, {},part.features[0],false);
+const byClass=(className)=>root.querySelectorAll('details').filter(n=>n.className===className);
+const toggle=(node,open)=>{node.open=open;node.dispatchEvent(new Event('toggle'));};
+render();let group=byClass('entity-group')[0];assert.ok(group);assert.match(group.textContent,/Repetición en fila3 elementos/);assert.equal(byClass('entity').length,0,'folded groups do not create all member forms');
+toggle(group,true);assert.equal(byClass('entity').length,3);assert.ok(byClass('entity').every(n=>!('open' in n.attributes)),'members start folded');
+let member=byClass('entity')[0];toggle(member,true);render();group=byClass('entity-group')[0];assert.ok('open' in group.attributes);assert.ok('open' in byClass('entity')[0].attributes,'member open state survives rerender');
+toggle(group,false);render();group=byClass('entity-group')[0];assert.ok(!('open' in group.attributes));assert.equal(byClass('entity').length,0);
+scope='p2';render();assert.ok(!('open' in byClass('entity-group')[0].attributes),'no shared state across parts');scope='p1';render();toggle(byClass('entity-group')[0],true);render();
+let rename=root.querySelectorAll('input').find(n=>n.attributes['aria-label']==='Nombre del grupo');rename.value='';rename.dispatchEvent(new Event('change'));assert.equal(rename.attributes['aria-invalid'],'true');assert.equal(part.features[0].entityGroups[0].name,'Repetición en fila');
+rename.value='<b>Dientes</b>';rename.dispatchEvent(new Event('change'));assert.match(root.textContent,/<b>Dientes<\/b>/);assert.equal(root.querySelectorAll('b').length,0,'name is rendered as text');
+root.querySelectorAll('button').find(n=>n.attributes.title==='Eliminar').click();assert.equal(part.features[0].entities.length,2);assert.match(byClass('entity-group')[0].textContent,/2 elementos/);
+const before=JSON.stringify(part.features[0].entities);root.querySelectorAll('button').find(n=>n.textContent==='Desagrupar').click();assert.equal(byClass('entity-group').length,0);assert.equal(byClass('entity').length,2);assert.equal(JSON.stringify(part.features[0].entities),before);
+// Old files with unrelated equal entities are not guessed into a group.
+assert.equal(part.features[0].entityGroups.length,0);render();assert.equal(byClass('entity-group').length,0);
+panel.resetEntityUi();assert.equal(panel.entityFoldState.size,0);
+console.log('entityGroupsPanel: lazy folders, fold persistence, scopes, safe rename, validation and ungroup without geometry changes OK (no layout)');
