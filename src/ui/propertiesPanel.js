@@ -19,6 +19,7 @@ export class PropertiesPanel {
   constructor(root, handlers) {
     this.root = root;
     this.h = handlers;
+    this.entityFoldState = new Map();
   }
 
   render(part, params, results, feature, picking) {
@@ -45,7 +46,7 @@ export class PropertiesPanel {
           button('Editar boceto…', () => this.h.onEditSketch(feature.id)),
           constraintPanel(feature, (id,patch)=>this.h.onUpdate(id,patch)),
           section(`Entidades (${feature.entities.length})`),
-          ...feature.entities.map((entity) => this.entityCard(feature, entity, params)),
+          ...this.entityCards(feature, params),
           el('div', { class: 'add-row' }, Object.entries(entityLabels).map(([t, label]) => button(`+ ${label}`, () => this.h.onAddEntity(feature.id, entityDefaults[t]())))),
         );
         break;
@@ -536,6 +537,62 @@ export class PropertiesPanel {
     return [['up', xy ? 'Hacia arriba (+Z)' : 'Sentido de la normal del plano'], ['down', xy ? 'Hacia abajo (−Z)' : 'Sentido opuesto a la normal'], ['sym', 'Simétrica (a ambos lados)']];
   }
 
+  resetEntityUi() {
+    this.entityFoldState.clear();
+  }
+
+  entityUiKey(sketchId, itemId) {
+    return JSON.stringify([this.h.getEntityScope?.() ?? 'part', sketchId, itemId]);
+  }
+
+  // Los grupos son carpetas de UI; las entidades mantienen IDs y edición propios.
+  entityCards(sketch, params) {
+    const groups = sketch.entityGroups ?? [];
+    if (!groups.length) return sketch.entities.map(entity => this.entityCard(sketch, entity, params));
+    const byId = new Map(sketch.entities.map(e => [e.id, e]));
+    const owners = new Map();
+    groups.forEach(group => group.entityIds.forEach(id => owners.set(id, group)));
+    const drawn = new Set();
+    return sketch.entities.flatMap(entity => {
+      const group = owners.get(entity.id);
+      if (!group) return [this.entityCard(sketch, entity, params)];
+      if (drawn.has(group.id)) return [];
+      drawn.add(group.id);
+      const members = group.entityIds.map(id => byId.get(id)).filter(Boolean);
+      const key = this.entityUiKey(sketch.id, group.id);
+      const body = el('div', { class: 'entity-group-body' });
+      const error = el('p', { class: 'err-block', role: 'status', 'aria-live': 'polite' });
+      const rename = textInput(group.name, value => {
+        if (!value.trim() || value.trim().length > 80) { error.textContent = 'Usá un nombre de 1 a 80 caracteres.'; rename.setAttribute('aria-invalid', 'true'); return; }
+        try { this.h.onRenameEntityGroup(sketch.id, group.id, value); error.textContent = ''; rename.setAttribute('aria-invalid', 'false'); }
+        catch (err) { error.textContent = err.message; }
+      });
+      rename.setAttribute('maxlength', '80');
+      rename.setAttribute('aria-label', 'Nombre del grupo');
+      const controls = el('div', { class: 'entity-group-controls' }, field('Nombre del grupo', rename), button('Desagrupar', () => {
+        try { this.h.onUngroupEntities(sketch.id, group.id); }
+        catch (err) { error.textContent = err.message; }
+      }, { title: 'Quitar la carpeta conservando todas las entidades' }), error);
+      const fill = () => {
+        if (body.children.length) return;
+        body.append(controls, ...members.map(member => {
+          const memberKey = this.entityUiKey(sketch.id, member.id);
+          if (!this.entityFoldState.has(memberKey)) this.entityFoldState.set(memberKey, false);
+          return this.entityCard(sketch, member, params);
+        }));
+      };
+      const folder = el('details', { class: 'entity-group', open: this.entityFoldState.get(key) ?? false,
+        onToggle: event => {
+          if (event.target !== folder || this.root.contains?.(folder) === false) return;
+          this.entityFoldState.set(key, folder.open);
+          if (folder.open) fill();
+        },
+      }, el('summary', {}, el('span', { class: 'entity-group-name', text: group.name }), el('span', { class: 'entity-group-count', text: `${members.length} elementos` })), body);
+      if (this.entityFoldState.get(key)) fill();
+      return [folder];
+    });
+  }
+
   // Repetir la entidad en fila, círculo o elipse: genera las copias como entidades independientes (editables una a una).
   patternSection(sketch, entity, params) {
     this.patterns = this.patterns ?? {};
@@ -593,6 +650,8 @@ export class PropertiesPanel {
       body.push(button('+ Vértice', () => update({ pts: [...entity.pts, { x: 0, y: 0, bulge: 0 }] })), el('p', { class: 'muted', text: 'R = radio y C = chaflán solo en ese vértice (0 = esquina viva; no aplica si un tramo vecino es un arco). Arco: “bulge” = tan(ángulo/4) del tramo al siguiente vértice (0 = recta, 1 = semicírculo, + antihorario).' }));
     }
     if (entity.t !== 'guide') body.push(this.patternSection(sketch, entity, params));
-    return el('details', { class: 'entity', open: true }, el('summary', {}, entityLabels[entity.t], el('button', { class: 'mini', title: 'Duplicar (Ctrl+D), desplazada 10 mm', onClick: (event) => { event.preventDefault(); this.h.onAddEntity(sketch.id, offsetEntity(entity, 10, 10)); } }, '⧉'), el('button', { class: 'mini danger', title: 'Eliminar', onClick: (event) => { event.preventDefault(); this.h.onRemoveEntity(sketch.id, entity.id); } }, '✕')), ...body);
+    const foldKey = this.entityUiKey(sketch.id, entity.id);
+    const card = el('details', { class: 'entity', open: this.entityFoldState.get(foldKey) ?? true, onToggle: event => { if (event.target === card && this.root.contains?.(card) !== false) this.entityFoldState.set(foldKey, card.open); } }, el('summary', {}, entityLabels[entity.t], el('button', { class: 'mini', title: 'Duplicar (Ctrl+D), desplazada 10 mm', onClick: (event) => { event.preventDefault(); this.h.onAddEntity(sketch.id, offsetEntity(entity, 10, 10)); } }, '⧉'), el('button', { class: 'mini danger', title: 'Eliminar', onClick: (event) => { event.preventDefault(); this.h.onRemoveEntity(sketch.id, entity.id); } }, '✕')), ...body);
+    return card;
   }
 }

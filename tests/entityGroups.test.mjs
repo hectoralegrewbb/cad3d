@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import {commands} from '../src/core/commands.js';
+import {createPart} from '../src/core/partModel.js';
+import {patternEntities} from '../src/core/patterns.js';
+import {parsePart} from '../src/io/persistence.js';
+import {DocumentStore} from '../src/core/documentStore.js';
+import {validatePart} from '../src/core/validation.js';
+const seed=()=>{let p=commands.addFeature(createPart('Agrupación'),'sketch');return commands.addEntity(p,'sketch1',{t:'circle',x:10,y:0,d:2});};
+const repeat=(p,kind='circle',originalId=p.features[0].entities[0].id)=>{const entity=p.features[0].entities.find(e=>e.id===originalId),cfg={kind,count:4,cx:0,cy:0,total:360,rotateCopies:true,spacing:10,angle:0,rx:20,ry:10,start:0};const {copies,original}=patternEntities(entity,cfg,{});return commands.addEntityPattern(p,'sketch1',copies,original??null,originalId,kind);};
+for(const kind of ['row','circle','ellipse']){
+ const before=seed(),after=repeat(before,kind),sk=after.features[0],g=sk.entityGroups[0];
+ assert.equal(sk.entities.length,4);assert.equal(g.kind,kind);assert.deepEqual(g.entityIds,sk.entities.map(e=>e.id));assert.equal(before.features[0].entityGroups,undefined);
+ assert.deepEqual(parsePart(JSON.stringify(after)).features,JSON.parse(JSON.stringify(after.features)),'save/reopen group');
+ const renamed=commands.renameEntityGroup(after,'sketch1',g.id,'  Dientes  ');assert.equal(renamed.features[0].entityGroups[0].name,'Dientes');
+ assert.throws(()=>commands.renameEntityGroup(after,'sketch1',g.id,''),/nombre/);assert.throws(()=>commands.renameEntityGroup(after,'sketch1',g.id,'x'.repeat(81)),/nombre/);
+ const ungrouped=commands.ungroupEntities(after,'sketch1',g.id);assert.deepEqual(ungrouped.features[0].entities,sk.entities);assert.deepEqual(ungrouped.features[0].entityGroups,[]);
+ let removed=commands.removeEntity(after,'sketch1',g.entityIds[0]);assert.equal(removed.features[0].entityGroups[0].entityIds.length,3);validatePart(removed);
+ for(const id of g.entityIds.slice(1))removed=commands.removeEntity(removed,'sketch1',id);assert.equal(removed.features[0].entityGroups.length,0);
+ const store=new DocumentStore(before);store.apply(p=>repeat(p,kind));store.undo();assert.deepEqual(store.state,before);store.redo();assert.deepEqual(store.state,after);
+}
+let p=repeat(seed());const group=p.features[0].entityGroups[0],first=group.entityIds[0];
+const replaced=commands.replaceSketchEntities(p,'sketch1',[first],[{t:'poly',closed:false,pts:[{x:0,y:0},{x:5,y:0}]},{t:'poly',closed:false,pts:[{x:5,y:0},{x:10,y:0}]}]);assert.equal(replaced.features[0].entityGroups[0].entityIds.length,5);validatePart(replaced);
+p=repeat(p,'row',first);assert.equal(p.features[0].entityGroups.length,2);assert.equal(p.features[0].entityGroups[0].entityIds.includes(first),false);validatePart(p);
+const cross=commands.replaceSketchEntities(p,'sketch1',[p.features[0].entityGroups[0].entityIds[0],first],[{t:'poly',closed:false,pts:[{x:0,y:0},{x:1,y:0}]}]);const newId=cross.features[0].entities.at(-1).id;assert.ok(cross.features[0].entityGroups.every(g=>!g.entityIds.includes(newId)));validatePart(cross);
+const mutate=fn=>{const bad=structuredClone(p);fn(bad.features[0].entityGroups);return bad;};
+assert.throws(()=>validatePart(mutate(gs=>gs[0].entityIds.push('absent'))),/inexistente/);
+assert.throws(()=>validatePart(mutate(gs=>gs[1].entityIds.push(gs[0].entityIds[0]))),/duplicado/);
+assert.throws(()=>validatePart(mutate(gs=>gs.push({...gs[0]}))),/inválido/);
+assert.throws(()=>validatePart(mutate(gs=>gs[0].name='')),/inválido/);
+const noCounter={...p,counters:{ent:p.counters.ent}};assert.equal(validatePart(noCounter).counters.group,p.counters.group);
+assert.throws(()=>commands.addEntityPattern(p,'sketch1',[],null,first,'circle'),/inválida/);
+assert.throws(()=>commands.addEntityPattern(p,'missing',[{}],null,first,'circle'),/cambió/);
+// A copied single entity is independent, even when its source belongs to a group.
+const duplicated=commands.addEntity(p,'sketch1',{t:'circle',x:20,y:20,d:2});assert.ok(duplicated.features[0].entityGroups.every(g=>!g.entityIds.includes(duplicated.features[0].entities.at(-1).id)));
+console.log('entityGroups: row/circle/ellipse, metadata persistence, cleanup, repeat member, atomic history and validation OK');
+const {loadKernel}=await import('../src/kernel/occNode.js');const {buildPart}=await import('../src/kernel/partBuilder.js');const rep=await loadKernel();
+let plate=commands.addFeature(repeat(seed()),'extrude',{sketch:'sketch1',depth:3}),plain=commands.ungroupEntities(plate,'sketch1',plate.features[0].entityGroups[0].id);
+const a=buildPart(rep,plate),b=buildPart(rep,plain);assert.equal(a.results.extrude1.status,'ok',a.results.extrude1.error);assert.equal(b.results.extrude1.status,'ok',b.results.extrude1.error);assert.ok(Math.abs(rep.measureVolume(a.shape)-rep.measureVolume(b.shape))<1e-8);assert.deepEqual(a.shape.boundingBox.bounds,b.shape.boundingBox.bounds);a.shape.delete();b.shape.delete();
+console.log('entityGroups: identical B-Rep volume/bounds before and after ungroup OK');
+const history=new DocumentStore(plate),gid=plate.features[0].entityGroups[0].id;history.apply(p=>commands.renameEntityGroup(p,'sketch1',gid,'Tornillos'));history.apply(p=>commands.ungroupEntities(p,'sketch1',gid));history.undo();assert.equal(history.state.features[0].entityGroups[0].name,'Tornillos');history.undo();assert.deepEqual(history.state,plate);history.redo();history.redo();assert.deepEqual(history.state.features[0].entities,plate.features[0].entities);

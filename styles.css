@@ -250,3 +250,18 @@ button:focus-visible,summary:focus-visible,[tabindex]:focus-visible { outline:2p
 .sketch-edit-status.error { color:#ffb5b5;border-color:#b75b67; }
 .sketch-toolbar .tool:active { transform:translateY(1px); }
 @media(max-width:480px) { .sketch-edit-status { bottom:4.5rem;font-size:.75rem; } }
+
+/* Carpetas de repeticiones: plegado nativo accesible y contenido creado al abrir. */
+.entity-group { margin-block:.5rem;border:1px solid var(--line);border-radius:.5rem;min-width:0;background:rgba(77,163,255,.035); }
+.entity-group > summary { display:flex;align-items:center;gap:.5rem;padding:.65rem;cursor:pointer;list-style:none;min-width:0; }
+.entity-group > summary::before { content:'▸';flex:none; }
+.entity-group[open] > summary::before { content:'▾'; }
+.entity-group > summary:hover { background:rgba(77,163,255,.09); }
+.entity-group > summary:active { background:rgba(77,163,255,.15); }
+.entity-group-name { flex:1;min-width:0;overflow-wrap:anywhere;font-weight:600; }
+.entity-group-count { flex:none;font-size:.75rem;color:var(--muted); }
+.entity-group-body { padding:0 clamp(.35rem,1vw,.65rem) .35rem;min-width:0; }
+.entity-group-controls { display:grid;gap:.4rem;margin-block:.4rem .65rem; }
+.entity-group-controls input { width:100%;min-width:0;box-sizing:border-box; }
+.entity-group-controls .err-block:empty { display:none; }
+@media(max-width:480px) { .entity-group > summary { flex-wrap:wrap; }.entity-group-count { margin-inline-start:auto; } }

@@ -34,3 +34,7 @@ Modal fluido con controles en grilla adaptable, vista SVG escalable, progreso po
 ## Edición de boceto 0.6.0
 
 Se reutilizan botones, estados focus/hover/disabled y barra adaptable existentes. Recorte anticipa en rojo sólo el intervalo a quitar. El estado de herramienta usa aria-pressed; instrucciones y errores usan una región role=status/aria-live persistente, independiente del cursor. Operaciones síncronas con feedback inmediato, sin espera artificial ni animación nueva.
+
+## Carpetas de repeticiones 0.6.1
+
+Encabezado nativo details/summary con nombre que admite salto, indicador de despliegue y contador de miembros. Estado inicial plegado; formularios internos diferidos al abrir. Teclado y foco usan comportamiento nativo y estilos existentes; hover/active refuerzan el encabezado. Error de nombre con aria-live y recuperación editando el campo. Sin animaciones ni cargas artificiales nuevas.

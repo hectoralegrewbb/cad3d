@@ -38,6 +38,18 @@ export function validatePart(part) {
       const entityIds=new Set();
       f.entities.forEach(e=>{if(!object(e)||!id(e.id)||entityIds.has(e.id)||!['rect','circle','ellipse','slot','poly','polygon','guide'].includes(e.t))fail('entidad o ID de boceto');entityIds.add(e.id);if(e.closed!==undefined&&typeof e.closed!=='boolean')fail('estado abierto/cerrado');if(e.closed===false&&(!Array.isArray(e.pts)||e.pts.length<2||e.pts.length>10000))fail('polilínea abierta');});
     }
+    if (f.entityGroups !== undefined) {
+      if (f.type !== 'sketch' || !Array.isArray(f.entityGroups) || f.entityGroups.length > 2000) fail('grupos de entidades');
+      const groups = new Set(), members = new Set(), entities = new Set(f.entities.map(e => e.id));
+      for (const g of f.entityGroups) {
+        if (!object(g) || !id(g.id) || groups.has(g.id) || typeof g.name !== 'string' || !g.name.trim() || g.name.length > 80 || !['row', 'circle', 'ellipse'].includes(g.kind) || !Array.isArray(g.entityIds) || !g.entityIds.length || g.entityIds.length > 100000) fail('grupo de entidades inválido');
+        groups.add(g.id);
+        for (const member of g.entityIds) {
+          if (!entities.has(member) || members.has(member)) fail('miembro de grupo duplicado o inexistente');
+          members.add(member);
+        }
+      }
+    }
     if(f.constraints){
       if(!Array.isArray(f.constraints)||f.constraints.length>500)fail('restricciones de boceto');
       const entities=new Set((f.entities??[]).map(e=>e.id));
@@ -54,6 +66,7 @@ export function validatePart(part) {
   if(part.drawing?.views)part.drawing.views.forEach(v=>{if(!id(v.id))fail('ID de vista');});
   const counters={...(part.counters??{})};
   for(const f of part.features){const match=f.id.match(/^([a-z]+)(\d+)$/);if(match)counters[match[1]]=Math.max(Number(counters[match[1]])||0,Number(match[2]));for(const e of f.entities??[]){const m=e.id.match(/^e(\d+)$/);if(m)counters.ent=Math.max(Number(counters.ent)||0,Number(m[1]));}}
+  for (const f of part.features) for (const g of f.entityGroups ?? []) { const m = g.id.match(/^group(\d+)$/); if (m) counters.group = Math.max(Number(counters.group) || 0, Number(m[1])); }
   return {...part,counters};
 }
 export function validateProject(data) {

@@ -15,6 +15,16 @@ const mapFeature = (state, id, fn) => {
   return changed ? { ...state, features } : state;
 };
 
+// Metadatos organizativos: nunca modifican la geometría ni las restricciones.
+const liveGroups = (groups, entities) => {
+  const ids = new Set(entities.map(e => e.id));
+  return groups.map(g => ({ ...g, entityIds: g.entityIds.filter(id => ids.has(id)) })).filter(g => g.entityIds.length);
+};
+const groupName = name => {
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) throw new Error('El nombre del grupo debe tener entre 1 y 80 caracteres');
+  return name.trim();
+};
+
 export const commands = {
   updateSimulation: (state, config) => ({...state,simulation:particleConfig(config)}),
   newPart: (name) => createPart(name),
@@ -97,6 +107,32 @@ export const commands = {
     return next;
   },
 
+  // Repetición agrupada: conserva addEntities y aplica original/copias/grupo en una sola transacción.
+  addEntityPattern(state, sketchId, entities, originalPatch, originalId, kind) {
+    const sketch = state.features.find(f => f.id === sketchId && f.type === 'sketch');
+    if (!sketch || !sketch.entities.some(e => e.id === originalId)) throw new Error('El boceto cambió; volvé a seleccionar el original');
+    if (!['row', 'circle', 'ellipse'].includes(kind) || !Array.isArray(entities) || entities.length < 1 || entities.length > 63) throw new Error('Repetición inválida (2 a 64 elementos con el original)');
+    if (sketch.entities.length + entities.length > 100000 || (sketch.entityGroups?.length ?? 0) >= 2000) throw new Error('Demasiadas entidades o grupos en el boceto');
+    const copies = entities.map(entity => { if (!entity || typeof entity !== 'object' || Array.isArray(entity)) throw new Error('Copia inválida'); const { id, ...data } = entity; return data; });
+    const next = commands.addEntities(state, sketchId, copies, originalPatch, originalId);
+    const added = next.features.find(f => f.id === sketchId).entities.slice(-entities.length).map(e => e.id);
+    const made = nextId(next, 'group');
+    const name = { row: 'Repetición en fila', circle: 'Repetición circular', ellipse: 'Repetición elíptica' }[kind];
+    return mapFeature({ ...next, counters: made.counters }, sketchId, f => ({ ...f,
+      entityGroups: [...liveGroups((f.entityGroups ?? []).map(g => ({ ...g, entityIds: g.entityIds.filter(id => id !== originalId) })), f.entities), { id: made.id, name, kind, entityIds: [originalId, ...added] }],
+    }));
+  },
+
+  renameEntityGroup(state, sketchId, groupId, name) {
+    const value = groupName(name);
+    return mapFeature(state, sketchId, f => {
+      if (!(f.entityGroups ?? []).some(g => g.id === groupId)) throw new Error('El grupo ya no existe');
+      return { ...f, entityGroups: f.entityGroups.map(g => g.id === groupId ? { ...g, name: value } : g) };
+    });
+  },
+
+  ungroupEntities: (state, sketchId, groupId) => mapFeature(state, sketchId, f => ({ ...f, entityGroups: (f.entityGroups ?? []).filter(g => g.id !== groupId) })),
+
   updateEntity: (state, sketchId, entityId, patch) =>
     mapFeature(state, sketchId, (sketch) => ({
       ...sketch,
@@ -104,7 +140,10 @@ export const commands = {
     })),
 
   removeEntity: (state, sketchId, entityId) =>
-    mapFeature(state, sketchId, (sketch) => ({ ...sketch, entities: sketch.entities.filter((entity) => entity.id !== entityId), constraints: (sketch.constraints??[]).filter(c=>c.a!==entityId&&c.b!==entityId) })),
+    mapFeature(state, sketchId, sketch => {
+      const entities = sketch.entities.filter(e => e.id !== entityId);
+      return { ...sketch, entities, constraints: (sketch.constraints ?? []).filter(c => c.a !== entityId && c.b !== entityId), ...(sketch.entityGroups ? { entityGroups: liveGroups(sketch.entityGroups, entities) } : {}) };
+    }),
 
   // Reemplazo atómico: un único paso de historial y ningún ID de restricción huérfano.
   replaceSketchEntities(state, sketchId, removeIds, entities) {
@@ -115,7 +154,14 @@ export const commands = {
     entities.forEach(validateSketchPolyline);
     let next = state;
     const added = entities.map(e => { const { id, ...data } = e; const made = makeEntity(next, data); next = { ...next, counters: made.counters }; return made.entity; });
-    return mapFeature(next, sketchId, f => ({ ...f, entities: [...f.entities.filter(e => !removeIds.includes(e.id)), ...added] }));
+    return mapFeature(next, sketchId, f => {
+      const entities = [...f.entities.filter(e => !removeIds.includes(e.id)), ...added];
+      if (!f.entityGroups) return { ...f, entities };
+      // Reemplazos de un mismo grupo permanecen allí; una unión entre grupos queda independiente.
+      const owner = f.entityGroups.find(g => removeIds.every(id => g.entityIds.includes(id)));
+      const groups = f.entityGroups.map(g => ({ ...g, entityIds: [...g.entityIds.filter(id => !removeIds.includes(id)), ...(g === owner ? added.map(e => e.id) : [])] }));
+      return { ...f, entities, entityGroups: liveGroups(groups, entities) };
+    });
   },
 
   // --- plano (hoja, vistas, cotas) ---

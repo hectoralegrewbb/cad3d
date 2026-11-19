@@ -66,3 +66,7 @@ El ZIP reutiliza `zipStore` público desde la composición de app. `laserDocumen
 | ui/sketchEditor.js | APIs anteriores; hooks adicionales onReplaceEntities/onEditStatus | app |
 
 Las funciones de geometría reciben datos numéricos resueltos y devuelven datos nuevos; no importan UI/kernel ni acceden a almacenamiento. El editor adapta las esquinas usando la API pública `cornerOutline`.
+
+## Repeticiones agrupadas 0.6.1
+
+`core/commands.js` agrega las APIs públicas `addEntityPattern`, `renameEntityGroup`, `ungroupEntities`; conserva firmas existentes. `removeEntity`/`replaceSketchEntities` limpian membresías. `core/validation.js` valida grupos y reconstituye el contador `group`. `PropertiesPanel` consume metadatos por hooks de app y expone `resetEntityUi`; sólo monta formularios de una carpeta al abrirla. Los grupos no son operaciones B-Rep ni instancias de conjunto.

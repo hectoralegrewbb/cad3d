@@ -85,3 +85,9 @@ Despliegue: conservar `.nojekyll` y fuente GitHub Pages existente; comprobar eje
 Automáticos: `sketchEditing.test.mjs`, `sketchEditingUI.test.mjs`, `sketchEditingKernel.test.mjs`. Cubren intersecciones exactas, tangencias, recorte/división de círculos, orientación de arcos al unir, línea extendida, solapes/ramificaciones, recuperación después de perfil abierto, área B-Rep de 200 mm² y semicírculo, DXF con bulge, persistencia, restricciones y undo/redo. Las pruebas UI ejecutan métodos/eventos con canvas simulado; no verifican layout/GPU.
 
 Manuales pendientes en navegador con WebGL, a 320/768/1024+ px: abrir proyecto anterior; dibujar rectángulo cruzado por círculo; recortar ambos; cerrar/unir; extruir y descargar DXF; Ctrl+Z/Ctrl+Y; guardar/reabrir; comprobar barra desplazable, mensajes y focus. Validar el DXF en CAM antes de fabricar.
+
+## Casos 0.6.1
+
+Automáticos: `entityGroups.test.mjs` cubre fila/círculo/elipse, original incluido, persistencia, nombre inválido, desagrupado, limpieza al borrar/recortar/unir, repetir un miembro, validación de referencias y undo/redo. Comprueba volumen/caja B-Rep idénticos antes/después de desagrupar. `entityGroupsPanel.test.mjs` comprueba carpetas lazy, estado de plegado tras rerender, separación por pieza, renombrado como texto y desagrupado.
+
+Pendiente manual a 320/768/1024+ px: crear una repetición de 24 elementos, desplegar con teclado, editar miembro, plegar, refrescar por una edición, renombrar, borrar un miembro, guardar/reabrir, desagrupar y Ctrl+Z. Confirmar foco visible y contador. El DOM simulado no valida layout/GPU real.
